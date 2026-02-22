@@ -422,7 +422,7 @@ function triggerWin() {
   state = 'win';
   winClamsEl.textContent = clams;
   spawnSparkles(family.x + family.w / 2, family.y, 24);
-  setTimeout(() => showScreen(winScreen), 600);
+  setTimeout(() => showScreen(winScreen), 2800); // delay to enjoy the dance party
 }
 
 // ─── Particles ───────────────────────────────────────────────────────────────
@@ -547,9 +547,11 @@ function draw(t) {
     drawClam(c.x, c.y + bob);
   }
 
-  // ── Family of otters (goal) ──
+  // ── Family of otters (goal / dance) ──
   if (!family.found) {
     drawFamilyOtters(t);
+  } else {
+    drawFamilyDance(t); // all reunited — everyone dances!
   }
 
   // ── Sharks ──
@@ -671,23 +673,20 @@ function drawClam(x, y) {
 }
 
 function drawFamilyOtters(t) {
-  const fx = family.x, fy = family.y;
-  // Glow
+  const footY = family.y + family.h; // ground level
   ctx.shadowColor = PAL.familyGlow;
   ctx.shadowBlur  = 24;
-  // Draw three small otters
-  const offsets = [0, 44, 88];
+  const offsets = [14, 54, 94]; // center-x of each of the three family members
   for (let i = 0; i < offsets.length; i++) {
-    const ox = fx + offsets[i];
-    const oy = fy + Math.sin(t * 0.003 + i * 1.2) * 3;
-    drawOtterShape(ox, oy, 38, 20, true, (i % 2 === 0));
+    const cx = family.x + offsets[i];
+    drawStandingOtter(cx, footY, 0.88, i % 2 === 0, t, false, i * 1.5);
   }
   ctx.shadowBlur = 0;
 
   // Floating hearts
   for (let i = 0; i < 3; i++) {
-    const hx = fx + 14 + i * 28;
-    const hy = fy - 18 + Math.sin(t * 0.004 + i) * 5;
+    const hx = family.x + 14 + i * 36;
+    const hy = family.y - 30 + Math.sin(t * 0.004 + i) * 5;
     ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(t * 0.003 + i));
     ctx.fillStyle = PAL.heartColor;
     ctx.font = '14px serif';
@@ -696,66 +695,133 @@ function drawFamilyOtters(t) {
   ctx.globalAlpha = 1;
 }
 
-function drawOtterShape(x, y, w, h, small, flip) {
-  ctx.save();
-  if (flip) { ctx.scale(-1, 1); ctx.translate(-(x * 2 + w), 0); }
+function drawFamilyDance(t) {
+  const footY = family.y + family.h;
+  ctx.shadowColor = '#FFD700';
+  ctx.shadowBlur  = 36;
+  const offsets = [14, 54, 94];
+  for (let i = 0; i < offsets.length; i++) {
+    const cx = family.x + offsets[i];
+    drawStandingOtter(cx, footY, 0.92, i % 2 === 0, t, true, i * 1.2);
+  }
+  ctx.shadowBlur = 0;
 
-  // Tail (thick, tapering)
+  // Celebration hearts and stars flying up
+  for (let i = 0; i < 5; i++) {
+    const hx = family.x - 10 + i * 30;
+    const hy = family.y - 28 + Math.sin(t * 0.006 + i * 1.1) * 14;
+    ctx.globalAlpha = 0.7 + 0.3 * Math.abs(Math.sin(t * 0.005 + i));
+    ctx.fillStyle   = i % 2 === 0 ? PAL.heartColor : '#FFD700';
+    ctx.font = `${15 + Math.sin(t * 0.007 + i) * 3}px serif`;
+    ctx.fillText(i % 2 === 0 ? '♥' : '★', hx, hy);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff) {
+  const s = size, ph = phaseOff || 0;
+  const phase = (t || 0) * 0.008 + ph;
+
+  // Dance / idle animation values
+  const sway = dancing ? Math.sin(phase)              * 7 * s : 0;
+  const bob  = dancing ? Math.abs(Math.sin(phase))    * 4 * s : 0;
+  const lUp  = dancing ? Math.max(0, Math.sin(phase))              : 0;
+  const rUp  = dancing ? Math.max(0, Math.sin(phase + Math.PI))    : 0;
+
+  const bx = cx + sway;       // body center x (sways during dance)
+  const fy = footY - bob;     // foot y (bobs up during dance)
+
+  // Structural y positions (bottom-up)
+  const legH = 14 * s, bodyH = 22 * s, headR = 11 * s;
+  const hipY  = fy  - legH;
+  const midY  = hipY - bodyH * 0.5;  // body ellipse center
+  const shdY  = hipY - bodyH;        // shoulder level
+  const hdY   = shdY - headR - 2 * s;// head center
+
+  ctx.save();
+  if (flip) { ctx.scale(-1, 1); ctx.translate(-(cx * 2), 0); }
+
+  // ── Tail (curves behind lower body) ──
   ctx.strokeStyle = PAL.otterBrown;
-  ctx.lineWidth   = small ? 4 : 5;
-  ctx.lineCap     = 'round';
+  ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(x + 8, y + h * 0.52);
-  ctx.quadraticCurveTo(x - 4, y + h * 0.65, x - 2, y + h * 0.9);
+  ctx.moveTo(bx - 5 * s, hipY - bodyH * 0.2);
+  ctx.quadraticCurveTo(bx - 16 * s, hipY + 2 * s, bx - 14 * s, fy + 2 * s);
+  ctx.stroke();
+  ctx.fillStyle = PAL.otterBrown;
+  ctx.beginPath();
+  ctx.ellipse(bx - 14 * s, fy + 1 * s, 5 * s, 3 * s, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Legs ──
+  ctx.fillStyle = PAL.otterBrown;
+  ctx.beginPath(); ctx.roundRect(bx - 11 * s, hipY, 9 * s, legH, 3 * s); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(bx + 2  * s, hipY, 9 * s, legH, 3 * s); ctx.fill();
+
+  // ── Feet (webbed) ──
+  ctx.fillStyle = PAL.otterBrown;
+  ctx.beginPath(); ctx.ellipse(bx - 7 * s, fy, 10 * s, 4 * s,  0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx + 7 * s, fy, 10 * s, 4 * s, -0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = PAL.otterBelly;
+  ctx.beginPath(); ctx.ellipse(bx - 7 * s, fy, 7 * s, 2.5 * s,  0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx + 7 * s, fy, 7 * s, 2.5 * s, -0.1, 0, Math.PI * 2); ctx.fill();
+
+  // ── Body ──
+  ctx.fillStyle = PAL.otterBrown;
+  ctx.beginPath(); ctx.ellipse(bx, midY, 13 * s, bodyH * 0.52, 0, 0, Math.PI * 2); ctx.fill();
+
+  // ── Belly patch ──
+  ctx.fillStyle = PAL.otterBelly;
+  ctx.beginPath(); ctx.ellipse(bx + 3 * s, midY + 2 * s, 8 * s, bodyH * 0.38, 0.1, 0, Math.PI * 2); ctx.fill();
+
+  // ── Arms (raise up when dancing) ──
+  ctx.strokeStyle = PAL.otterBrown;
+  ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(bx - 12 * s, shdY + 6 * s);
+  ctx.lineTo(bx - 12 * s - lUp * 8 * s, shdY + 6 * s - lUp * 16 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bx + 12 * s, shdY + 6 * s);
+  ctx.lineTo(bx + 12 * s + rUp * 8 * s, shdY + 6 * s - rUp * 16 * s);
   ctx.stroke();
 
-  // Long streamlined body
+  // ── Head ──
   ctx.fillStyle = PAL.otterBrown;
-  ctx.beginPath();
-  ctx.ellipse(x + w * 0.42, y + h * 0.55, w * 0.42, h * 0.4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(bx, hdY, headR, 0, Math.PI * 2); ctx.fill();
 
-  // Belly
+  // ── Muzzle ──
   ctx.fillStyle = PAL.otterBelly;
   ctx.beginPath();
-  ctx.ellipse(x + w * 0.38, y + h * 0.6, w * 0.26, h * 0.26, 0, 0, Math.PI * 2);
+  ctx.ellipse(bx + headR * 0.45, hdY + headR * 0.2, headR * 0.42, headR * 0.32, 0.15, 0, Math.PI * 2);
   ctx.fill();
 
-  // Head — big and round
-  ctx.fillStyle = PAL.otterBrown;
-  ctx.beginPath();
-  ctx.arc(x + w - 9, y + h * 0.38, h * 0.46, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Muzzle
-  ctx.fillStyle = PAL.otterBelly;
-  ctx.beginPath();
-  ctx.ellipse(x + w - 2, y + h * 0.45, h * 0.2, h * 0.15, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Nose
+  // ── Nose ──
   ctx.fillStyle = PAL.otterNose;
   ctx.beginPath();
-  ctx.ellipse(x + w + 1, y + h * 0.37, 2.5, 1.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(bx + headR * 0.75, hdY + headR * 0.08, 2.5 * s, 1.8 * s, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eye — large and friendly
+  // ── Eye ──
   ctx.fillStyle = '#1a0a00';
-  ctx.beginPath();
-  ctx.arc(x + w - 16, y + h * 0.23, small ? 3 : 3.5, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(bx + headR * 0.08, hdY - headR * 0.15, 3 * s, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(x + w - 17, y + h * 0.21, small ? 1.1 : 1.4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(bx + headR * 0.03, hdY - headR * 0.22, 1.2 * s, 0, Math.PI * 2); ctx.fill();
 
-  // Ears
+  // ── Ears ──
   ctx.fillStyle = PAL.otterBrown;
-  ctx.beginPath(); ctx.ellipse(x + w - 22, y + h * 0.05, 4.5, 3.5, -0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(x + w - 10, y + h * 0.03, 4.5, 3.5, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx - headR * 0.5, hdY - headR * 0.75, 5 * s, 4 * s, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx + headR * 0.5, hdY - headR * 0.75, 5 * s, 4 * s,  0.3, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#c87878';
-  ctx.beginPath(); ctx.ellipse(x + w - 22, y + h * 0.05, 2.5, 2, -0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(x + w - 10, y + h * 0.03, 2.5, 2, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx - headR * 0.5, hdY - headR * 0.75, 2.8 * s, 2.2 * s, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx + headR * 0.5, hdY - headR * 0.75, 2.8 * s, 2.2 * s,  0.3, 0, Math.PI * 2); ctx.fill();
+
+  // ── Whiskers ──
+  ctx.strokeStyle = 'rgba(210,185,155,0.85)'; ctx.lineWidth = 1;
+  const wx = bx + headR * 0.42, wy = hdY + headR * 0.18;
+  ctx.beginPath(); ctx.moveTo(wx, wy - 2 * s); ctx.lineTo(wx + 12 * s, wy - 5 * s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(wx, wy);          ctx.lineTo(wx + 13 * s, wy);          ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(wx, wy + 2 * s);  ctx.lineTo(wx + 12 * s, wy + 4 * s);  ctx.stroke();
 
   ctx.restore();
 }
@@ -768,19 +834,23 @@ function drawPlayer(t) {
     ctx.globalAlpha = 0.35;
   }
 
-  // Water ripple ring
-  if (player.inWater) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth   = 2;
-    ctx.beginPath();
-    ctx.ellipse(px + pw / 2, py + ph * 0.55, pw * 0.55, ph * 0.38, 0, 0, Math.PI * 2);
-    ctx.stroke();
+  // On land: draw upright standing otter
+  if (!player.inWater) {
+    drawStandingOtter(px + pw / 2, py + ph, 1.2, !player.facingRight, t, state === 'win', 0);
+    ctx.globalAlpha = 1;
+    return;
   }
 
-  // Leg/flipper animation
-  const legSwing = player.onGround
-    ? Math.sin(t * 0.025 * (Math.abs(player.vx) > 0.5 ? 1 : 0)) * 4
-    : (player.inWater ? Math.sin(t * 0.015) * 5 : 0);
+  // In water: draw horizontal swimming otter
+  // Water ripple ring
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.ellipse(px + pw / 2, py + ph * 0.55, pw * 0.55, ph * 0.38, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Flipper animation
+  const legSwing = Math.sin(t * 0.015) * 5;
 
   const flip = !player.facingRight;
   ctx.save();
