@@ -43,6 +43,36 @@ function bindTouchBtn(id, key, triggerJump) {
 canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 canvas.addEventListener('touchmove',  e => e.preventDefault(), { passive: false });
 
+// ─── Fullscreen (mobile landscape) ───────────────────────────────────────────
+const btnFs = document.getElementById('btn-fullscreen');
+function requestFs() {
+  const el = document.documentElement;
+  (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen
+    || (() => {})).call(el);
+}
+function exitFs() {
+  (document.exitFullscreen || document.webkitExitFullscreen
+    || document.mozCancelFullScreen || (() => {})).call(document);
+}
+function updateFsIcon() {
+  if (btnFs) btnFs.textContent = document.fullscreenElement ? '\u26F7' : '\u26F6';
+}
+if (btnFs) {
+  btnFs.addEventListener('click', () => {
+    document.fullscreenElement ? exitFs() : requestFs();
+  });
+}
+document.addEventListener('fullscreenchange', updateFsIcon);
+document.addEventListener('webkitfullscreenchange', updateFsIcon);
+// Auto-request fullscreen when rotating to landscape (works on Android; silently fails on iOS)
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    if (window.innerWidth > window.innerHeight && !document.fullscreenElement) {
+      requestFs();
+    }
+  }, 300);
+});
+
 // ─── Cozy colour palette ──────────────────────────────────────────────────────
 const PAL = {
   skyTop:      '#7ec8e3',
