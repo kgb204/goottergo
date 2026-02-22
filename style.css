@@ -469,17 +469,22 @@ button:active { filter: brightness(0.95); transform: translateY(1px); }
   .controls-box { margin: 8px 0 12px; padding: 8px 14px; }
 }
 
-/* Compact start screen for landscape mobile (short viewport inside the game wrapper) */
-@media (max-height: 420px) {
-  .panel { padding: 12px 20px; }
-  .otter-emoji { display: none; }
-  .panel h1 { font-size: 1.7rem; margin-bottom: 0; }
-  .tagline { margin-bottom: 6px; font-size: 0.85rem; }
-  .name-input-row { margin: 6px 0 0; gap: 4px; }
-  .name-input-row input { padding: 5px 12px; }
-  .otter-type-row { margin: 2px 0 2px; gap: 4px; }
-  .otter-swatch { width: 28px; height: 28px; }
-  .otter-swatch-tip { display: none; }
-  .controls-box { display: none; }
-  button { margin-top: 8px; padding: 9px 28px; }
+/* On touch/mobile the overlay escapes the clipped game-wrapper so the
+   full panel is reachable — auto-margins center it when there's space,
+   scroll brings the button into view when there isn't */
+@media (hover: none), (pointer: coarse) {
+  #overlay {
+    position: fixed;
+    inset: 0;
+    border-radius: 0;
+    overflow-y: auto;
+    touch-action: pan-y;
+    align-items: flex-start;
+  }
+  #overlay .panel {
+    flex-shrink: 0;
+    margin: auto;
+    width: calc(100% - 24px);
+    max-width: 440px;
+  }
 }
