@@ -439,6 +439,74 @@ const HATS = [
       ctx.restore();
     }
   },
+
+  // ── Box-only hats (cannot be bought — find them in treasure boxes!) ──
+  {
+    id: 'diving', name: 'Diving Helmet', boxOnly: true,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 4*s);
+      // Neck collar
+      ctx.fillStyle = '#7a5a0a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 14*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      // Brass dome
+      ctx.fillStyle = '#c8960a';
+      ctx.beginPath(); ctx.ellipse(0, -1*s, 12*s, 14*s, 0, Math.PI, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, -14*s, 12*s, 3*s, 0, 0, Math.PI*2); ctx.fill();
+      // Porthole
+      ctx.fillStyle = '#1a4a7a';
+      ctx.beginPath(); ctx.ellipse(0, -7*s, 6*s, 5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(100,200,255,0.45)';
+      ctx.beginPath(); ctx.ellipse(-2*s, -9*s, 2*s, 2*s, -0.5, 0, Math.PI*2); ctx.fill();
+      // Bolts around porthole
+      ctx.fillStyle = '#7a5a0a';
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        ctx.beginPath(); ctx.arc(Math.cos(a)*7.5*s, -7*s + Math.sin(a)*6.5*s, 1.4*s, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
+  {
+    id: 'rainbow', name: 'Rainbow Cap', boxOnly: true,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      // Brim
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.ellipse(0, 0, 15*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      // White dome
+      ctx.beginPath(); ctx.ellipse(0, -1*s, 11*s, 10*s, 0, Math.PI, Math.PI*2); ctx.fill();
+      // Rainbow arc
+      const rainbowCols = ['#ff2020','#ff8800','#ffe020','#22cc22','#2288ff','#9922ff'];
+      for (let i = rainbowCols.length - 1; i >= 0; i--) {
+        ctx.strokeStyle = rainbowCols[i];
+        ctx.lineWidth = 2.2*s;
+        ctx.beginPath(); ctx.arc(0, -2*s, (5 + i * 2.3) * s, Math.PI, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+  {
+    id: 'mushroom', name: 'Mushroom Cap', boxOnly: true,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      // Underside rim
+      ctx.fillStyle = '#f0dfc0';
+      ctx.beginPath(); ctx.ellipse(0, 0, 11*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
+      // Red cap
+      ctx.fillStyle = '#e82020';
+      ctx.beginPath();
+      ctx.moveTo(-14*s, 0);
+      ctx.bezierCurveTo(-14*s, -8*s, -10*s, -20*s, 0, -22*s);
+      ctx.bezierCurveTo(10*s, -20*s, 14*s, -8*s, 14*s, 0);
+      ctx.closePath(); ctx.fill();
+      // White spots
+      ctx.fillStyle = '#ffffff';
+      for (const [dx, dy] of [[0, -14*s], [-6*s, -8*s], [6*s, -8*s], [-3*s, -19*s], [5*s, -16*s]]) {
+        ctx.beginPath(); ctx.arc(dx, dy, 2.5*s, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
 ];
 
 function drawHatOnHead(cx, cy, r, s) {
@@ -1025,10 +1093,14 @@ function update(dt) {
       sfxPowerUp();
       const unowned = HATS.filter(h => !ownedHats.includes(h.id));
       if (tb.reward === 'hat' && unowned.length > 0) {
-        const hat = unowned[Math.floor(rng() * unowned.length)];
+        // Prefer box-only hats; fall back to any unowned hat
+        const unownedBoxOnly = unowned.filter(h => h.boxOnly);
+        const pool = unownedBoxOnly.length > 0 ? unownedBoxOnly : unowned;
+        const hat = pool[Math.floor(rng() * pool.length)];
         ownedHats.push(hat.id);
         if (!equippedHat) equippedHat = hat.id;
-        showMessage(`🎩 Found the ${hat.name}!`);
+        const tag = hat.boxOnly ? '🎁' : '🎩';
+        showMessage(`${tag} Found the ${hat.name}!`);
       } else {
         clams += 10;
         updateHUD();
@@ -2144,32 +2216,47 @@ function openHatShop() {
     const owned    = ownedHats.includes(hat.id);
     const equipped = equippedHat === hat.id;
     const item = document.createElement('div');
-    item.className = 'hat-item' + (equipped ? ' equipped' : '');
-    item.innerHTML = `<span class="hat-name">${hat.name}</span>`;
-    if (!owned) {
-      const price = document.createElement('span');
-      price.className = 'hat-price';
-      price.textContent = `${hat.price} 🦪`;
-      item.appendChild(price);
-    }
-    const btn = document.createElement('button');
-    btn.className = 'hat-btn';
-    if (owned) {
-      btn.textContent = equipped ? 'Wearing ✓' : 'Equip';
-      btn.disabled = equipped;
-      btn.addEventListener('click', () => { equippedHat = hat.id; openHatShop(); });
+    item.className = 'hat-item' + (equipped ? ' equipped' : '') + (hat.boxOnly && !owned ? ' box-locked' : '');
+    const label = hat.boxOnly ? `🎁 ${hat.name}` : hat.name;
+    item.innerHTML = `<span class="hat-name">${label}</span>`;
+
+    if (hat.boxOnly && !owned) {
+      // Box-exclusive — cannot be purchased
+      const tag = document.createElement('span');
+      tag.className = 'hat-price';
+      tag.textContent = 'Find in boxes!';
+      item.appendChild(tag);
+      const btn = document.createElement('button');
+      btn.className = 'hat-btn';
+      btn.textContent = '🔒 Box only';
+      btn.disabled = true;
+      item.appendChild(btn);
     } else {
-      btn.textContent = clams >= hat.price ? `Buy ${hat.price} 🦪` : `Need ${hat.price} 🦪`;
-      btn.disabled = clams < hat.price;
-      btn.addEventListener('click', () => {
-        clams -= hat.price;
-        ownedHats.push(hat.id);
-        equippedHat = hat.id;
-        updateHUD();
-        openHatShop();
-      });
+      if (!owned) {
+        const price = document.createElement('span');
+        price.className = 'hat-price';
+        price.textContent = `${hat.price} 🦪`;
+        item.appendChild(price);
+      }
+      const btn = document.createElement('button');
+      btn.className = 'hat-btn';
+      if (owned) {
+        btn.textContent = equipped ? 'Wearing ✓' : 'Equip';
+        btn.disabled = equipped;
+        btn.addEventListener('click', () => { equippedHat = hat.id; openHatShop(); });
+      } else {
+        btn.textContent = clams >= hat.price ? `Buy ${hat.price} 🦪` : `Need ${hat.price} 🦪`;
+        btn.disabled = clams < hat.price;
+        btn.addEventListener('click', () => {
+          clams -= hat.price;
+          ownedHats.push(hat.id);
+          equippedHat = hat.id;
+          updateHUD();
+          openHatShop();
+        });
+      }
+      item.appendChild(btn);
     }
-    item.appendChild(btn);
     grid.appendChild(item);
   }
   showScreen(hatShopScreen);

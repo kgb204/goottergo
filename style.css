@@ -439,6 +439,11 @@ button:active { filter: brightness(0.95); transform: translateY(1px); }
   border-color: #e8b96a;
   background: rgba(232,185,106,0.12);
 }
+.hat-item.box-locked {
+  border-color: rgba(180,120,255,0.45);
+  background: rgba(120,60,200,0.10);
+  opacity: 0.75;
+}
 
 .hat-name  { font-size: 0.78rem; color: #f5ddb0; text-align: center; }
 .hat-price { font-size: 0.72rem; color: #c8a87a; }
