@@ -62,7 +62,7 @@ const PAL = {
 
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
-const GRAVITY_WATER = 0.12;
+const GRAVITY_WATER = -0.06;  // negative = buoyancy; otter floats up when idle
 const JUMP_V        = -13;
 const SWIM_UP_V     = -3.5;
 const MOVE_SPEED    = 2.5;
@@ -342,14 +342,14 @@ function update(dt) {
       if (distX < 120 && player.y > h.y && !player.inWater && level >= 1) {
         h.dive    = true;
         h.diveY   = player.y + player.h;
-        h.diveVy  = 0.9 + level * 0.12;
+        h.diveVy  = 0.5 + level * 0.1;
         h.savedY  = h.y;
         h.savedVx = h.vx;
       }
     } else {
       // Diving
       h.y += h.diveVy;
-      h.diveVy = Math.min(h.diveVy + 0.08, 2.8);
+      h.diveVy = Math.min(h.diveVy + 0.04, 2.0);
       if (h.y > h.diveY + 30 || h.y > GROUND_Y - 20) {
         // Return to sky
         h.y    = h.savedY || 80;
