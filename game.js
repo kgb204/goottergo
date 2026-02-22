@@ -114,6 +114,43 @@ const PAL = {
   familyGlow:  '#ffe0a0',
 };
 
+// ─── Level themes ─────────────────────────────────────────────────────────────
+const THEMES = [
+  { skyTop:'#7ec8e3', skyBot:'#c8e8f0', groundTop:'#e8c87a', groundBody:'#c8a050', name:'Beach'  },
+  { skyTop:'#ff9040', skyBot:'#ffd080', groundTop:'#e89060', groundBody:'#c87040', name:'Sunset' },
+  { skyTop:'#507090', skyBot:'#90b8d8', groundTop:'#c8d8a0', groundBody:'#a0b878', name:'Forest' },
+  { skyTop:'#c070e0', skyBot:'#f0c0f8', groundTop:'#f0d888', groundBody:'#d0b060', name:'Dusk'   },
+  { skyTop:'#203060', skyBot:'#405090', groundTop:'#d0d8e8', groundBody:'#a0a8c0', name:'Night'  },
+];
+let currentTheme = THEMES[0];
+
+// ─── Sound engine (Web Audio API) ────────────────────────────────────────────
+let _audioCtx = null;
+function _getAudio() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+function _playTone(freq, type, dur, vol, freqEnd) {
+  try {
+    const ac = _getAudio();
+    const osc  = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    if (freqEnd) osc.frequency.linearRampToValueAtTime(freqEnd, ac.currentTime + dur);
+    gain.gain.setValueAtTime(vol || 0.2, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    osc.start(); osc.stop(ac.currentTime + dur);
+  } catch(e) {}
+}
+function sfxJump()       { _playTone(360, 'square',   0.09, 0.15, 520); }
+function sfxCollect()    { _playTone(880, 'sine',     0.12, 0.20, 1100); }
+function sfxPowerUp()    { _playTone(480, 'square',   0.22, 0.25, 900); }
+function sfxHit()        { _playTone(160, 'sawtooth', 0.28, 0.30, 80); }
+function sfxHeart()      { _playTone(660, 'sine',     0.18, 0.22, 880); }
+function sfxCheckpoint() { _playTone(440, 'triangle', 0.12, 0.22); setTimeout(() => _playTone(660, 'triangle', 0.15, 0.22), 130); }
+
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
 const GRAVITY_WATER = -0.06;  // negative = buoyancy; otter floats up when idle
@@ -280,6 +317,9 @@ bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 let player, platforms, waterZones, clamItems, hawks, sharks, family, particles, bubbles, clouds;
+let crabs, powerClams, heartItems, checkpoint;
+let combo = 0, comboTimer = 0;
+let highScore = parseInt(localStorage.getItem('otterHighScore') || '0');
 
 // ─── Seeded RNG ───────────────────────────────────────────────────────────────
 function mkRng(seed) {
@@ -381,13 +421,80 @@ function buildLevel() {
   // Family of otters at the end
   family = { x: LEVEL_W - 260, y: GROUND_Y - 46, w: 130, h: 46, found: false };
 
+  // ── Theme ──
+  currentTheme = THEMES[(level - 1) % THEMES.length];
+
+  // ── Moving platforms ──
+  const mpCount = 1 + Math.floor(level * 0.6);
+  for (let i = 0; i < mpCount; i++) {
+    const mpx   = 350 + rng() * (LEVEL_W - 700);
+    const mpy   = GROUND_Y - 95 - rng() * 110;
+    const mpw   = 70 + rng() * 60;
+    const range = 70 + rng() * 90;
+    const bob   = rng() > 0.5;
+    platforms.push({
+      x: mpx, y: mpy, w: mpw, h: 18, type: 'rock',
+      moving: true, startX: mpx, startY: mpy, range,
+      vx: bob ? 0 : (rng() > 0.5 ? 1 : -1) * (0.6 + rng() * 0.4 + level * 0.05),
+      vy: bob ? (0.4 + rng() * 0.3) : 0,
+      bob, bobDir: 1,
+    });
+  }
+  // Extra clams on moving platforms
+  for (const p of platforms) {
+    if (!p.moving) continue;
+    if (rng() > 0.45) clamItems.push({ x: p.x + p.w / 2, y: p.y - 16, collected: false, bob: rng() * Math.PI * 2 });
+  }
+
+  // ── Crabs (ground enemies) ──
+  crabs = [];
+  const crabCount = 1 + Math.floor(level * 0.7);
+  for (let i = 0; i < crabCount; i++) {
+    const cx = 300 + rng() * (LEVEL_W - 600);
+    const cr  = 80 + rng() * 90;
+    crabs.push({
+      x: cx, y: GROUND_Y - 20,
+      vx: (rng() > 0.5 ? 1 : -1) * (0.5 + rng() * 0.4 + level * 0.05),
+      left: Math.max(60, cx - cr), right: Math.min(LEVEL_W - 60, cx + cr),
+      w: 28, h: 20, legPhase: rng() * Math.PI * 2,
+    });
+  }
+
+  // ── Power clams (golden — grant speed boost or invincibility) ──
+  powerClams = [];
+  const pcCount = 1 + Math.floor(level * 0.4);
+  for (let i = 0; i < pcCount; i++) {
+    powerClams.push({
+      x: 200 + rng() * (LEVEL_W - 400),
+      y: GROUND_Y - 16,
+      collected: false, bob: rng() * Math.PI * 2,
+      type: rng() > 0.4 ? 'speed' : 'invincible',
+    });
+  }
+
+  // ── Heart collectibles (extra life) ──
+  heartItems = [];
+  for (const p of platforms) {
+    if (p.type === 'sand' && p.x === 0) continue;
+    if (rng() > 0.80) {
+      heartItems.push({ x: p.x + p.w / 2, y: p.y - 16, collected: false, bob: rng() * Math.PI * 2 });
+    }
+  }
+
+  // ── Checkpoint (midpoint flag) ──
+  checkpoint = { x: LEVEL_W / 2, y: GROUND_Y - 50, activated: false };
+
+  // Reset combo
+  combo = 0; comboTimer = 0;
+
   // Player
   resetPlayer();
 }
 
 function resetPlayer() {
+  const spawnX = (checkpoint && checkpoint.activated) ? checkpoint.x - 20 : 60;
   player = {
-    x: 60, y: GROUND_Y - 32,
+    x: spawnX, y: GROUND_Y - 32,
     w: 48, h: 26,
     vx: 0, vy: 0,
     onGround: false,
@@ -395,6 +502,7 @@ function resetPlayer() {
     facingRight: true,
     jumpsLeft: 2,
     invincible: 0,   // frames
+    speedBoost: 0,   // frames
     frame: 0, frameTimer: 0,
   };
 }
@@ -403,10 +511,12 @@ function resetPlayer() {
 function handleJump() {
   if (player.inWater) {
     player.vy = SWIM_UP_V;
+    sfxJump();
   } else if (player.jumpsLeft > 0) {
     player.vy = JUMP_V;
     player.jumpsLeft--;
     spawnJumpPuff();
+    sfxJump();
   }
 }
 
@@ -429,8 +539,11 @@ function update(dt) {
   }
   player.inWater = !!inWaterZone;
 
+  // ── Speed boost countdown ──
+  if (player.speedBoost > 0) player.speedBoost--;
+
   // ── Horizontal movement ──
-  const speed = player.inWater ? SWIM_SPEED : MOVE_SPEED;
+  const speed = player.inWater ? SWIM_SPEED : MOVE_SPEED * (player.speedBoost > 0 ? 1.75 : 1);
   if (keys['ArrowLeft'] || keys['a']) {
     player.vx = -speed;
     player.facingRight = false;
@@ -461,6 +574,18 @@ function update(dt) {
   if (player.x < 0) { player.x = 0; player.vx = 0; }
   if (player.x + player.w > LEVEL_W) { player.x = LEVEL_W - player.w; player.vx = 0; }
 
+  // ── Update moving platforms ──
+  for (const p of platforms) {
+    if (!p.moving) continue;
+    if (p.bob) {
+      p.y += p.vy * p.bobDir;
+      if (Math.abs(p.y - p.startY) >= p.range / 2) p.bobDir *= -1;
+    } else {
+      p.x += p.vx;
+      if (Math.abs(p.x - p.startX) >= p.range / 2) p.vx *= -1;
+    }
+  }
+
   // ── Platform collisions (only when not in water) ──
   player.onGround = false;
   if (!player.inWater) {
@@ -477,6 +602,7 @@ function update(dt) {
         player.vy = 0;
         player.onGround = true;
         player.jumpsLeft = 2;
+        if (p.moving && !p.bob) player.x += p.vx; // ride horizontal moving platform
       }
     }
   }
@@ -504,10 +630,14 @@ function update(dt) {
     if (c.collected) continue;
     if (rectsOverlap(pr, { x: c.x - 10, y: c.y - 8, w: 20, h: 18 })) {
       c.collected = true;
-      clams++;
+      if (comboTimer > 0) combo++; else combo = 1;
+      comboTimer = 130;
+      const earned = combo >= 5 ? 3 : combo >= 3 ? 2 : 1;
+      clams += earned;
       updateHUD();
       spawnSparkles(c.x, c.y, 8);
-      showMessage('🐚 +1 clam!');
+      sfxCollect();
+      showMessage(combo >= 3 ? `🐚 x${combo} COMBO! +${earned}` : `🐚 +${earned} clam!`);
     }
   }
 
@@ -566,6 +696,59 @@ function update(dt) {
     }
   }
 
+  // ── Crabs ──
+  for (const c of crabs) {
+    c.x += c.vx;
+    if (c.x <= c.left || c.x + c.w >= c.right) c.vx *= -1;
+    if (player.invincible > 0) continue;
+    if (!player.inWater && rectsOverlap(pr, { x: c.x + 2, y: c.y, w: c.w - 4, h: c.h })) {
+      hitByPredator();
+      return;
+    }
+  }
+
+  // ── Power clams (golden) ──
+  for (const pc of powerClams) {
+    if (pc.collected) continue;
+    if (rectsOverlap(pr, { x: pc.x - 12, y: pc.y - 10, w: 24, h: 20 })) {
+      pc.collected = true;
+      spawnSparkles(pc.x, pc.y, 14);
+      sfxPowerUp();
+      if (pc.type === 'speed') {
+        player.speedBoost = 300;
+        showMessage('⚡ Speed boost!');
+      } else {
+        player.invincible = 300;
+        showMessage('✨ Invincible!');
+      }
+    }
+  }
+
+  // ── Heart collectibles (extra life) ──
+  for (const h of heartItems) {
+    if (h.collected) continue;
+    if (rectsOverlap(pr, { x: h.x - 10, y: h.y - 12, w: 20, h: 22 })) {
+      h.collected = true;
+      lives = Math.min(lives + 1, 6);
+      updateHUD();
+      spawnSparkles(h.x, h.y, 10);
+      sfxHeart();
+      showMessage('❤️ Extra life!');
+    }
+  }
+
+  // ── Checkpoint ──
+  if (!checkpoint.activated &&
+      player.x + player.w > checkpoint.x && player.x < checkpoint.x + 20 &&
+      player.y + player.h > checkpoint.y) {
+    checkpoint.activated = true;
+    sfxCheckpoint();
+    showMessage('🚩 Checkpoint saved!');
+  }
+
+  // ── Combo timer ──
+  if (comboTimer > 0) comboTimer--;
+
   // ── Particles & bubbles ──
   updateParticles();
   updateBubbles();
@@ -594,8 +777,11 @@ function hitByPredator() {
   lives--;
   updateHUD();
   spawnSparkles(player.x + player.w / 2, player.y + player.h / 2, 14);
+  sfxHit();
+  combo = 0; comboTimer = 0;
   showMessage('Careful, little otter! 💦');
   if (lives <= 0) {
+    if (clams > highScore) { highScore = clams; localStorage.setItem('otterHighScore', highScore); }
     finalClamsEl.textContent = clams;
     document.getElementById('gameover-name').textContent = otterName || 'The little otter';
     state = 'gameover';
@@ -609,6 +795,7 @@ function hitByPredator() {
 
 function triggerWin() {
   state = 'win';
+  if (clams > highScore) { highScore = clams; localStorage.setItem('otterHighScore', highScore); }
   winClamsEl.textContent = clams;
   document.getElementById('win-name').textContent = otterName || 'The otter';
   spawnSparkles(family.x + family.w / 2, family.y, 24);
@@ -667,8 +854,8 @@ function draw(t) {
 
   // Sky
   const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.65);
-  skyGrad.addColorStop(0, PAL.skyTop);
-  skyGrad.addColorStop(1, PAL.skyBot);
+  skyGrad.addColorStop(0, currentTheme.skyTop);
+  skyGrad.addColorStop(1, currentTheme.skyBot);
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
 
@@ -696,8 +883,8 @@ function draw(t) {
 
   // ── Ground (sand) ──
   const sandGrad = ctx.createLinearGradient(0, GROUND_Y, 0, H);
-  sandGrad.addColorStop(0, PAL.sandTop);
-  sandGrad.addColorStop(0.2, PAL.sandBody);
+  sandGrad.addColorStop(0, currentTheme.groundTop);
+  sandGrad.addColorStop(0.2, currentTheme.groundBody);
   sandGrad.addColorStop(1, '#a07838');
   ctx.fillStyle = sandGrad;
   ctx.fillRect(0, GROUND_Y, LEVEL_W, H - GROUND_Y);
@@ -736,6 +923,31 @@ function draw(t) {
     const bob = Math.sin(t * 0.003 + c.bob) * 2;
     drawClam(c.x, c.y + bob);
   }
+
+  // ── Power clams (golden) ──
+  for (const pc of powerClams) {
+    if (pc.collected) continue;
+    if (pc.x < cameraX - 30 || pc.x > cameraX + W + 30) continue;
+    const bob = Math.sin(t * 0.003 + pc.bob) * 2.5;
+    drawGoldenClam(pc.x, pc.y + bob, t, pc.type);
+  }
+
+  // ── Heart collectibles ──
+  for (const h of heartItems) {
+    if (h.collected) continue;
+    if (h.x < cameraX - 30 || h.x > cameraX + W + 30) continue;
+    const bob = Math.sin(t * 0.004 + h.bob) * 3;
+    drawHeartItem(h.x, h.y + bob, t);
+  }
+
+  // ── Crabs ──
+  for (const c of crabs) {
+    if (c.x + c.w < cameraX || c.x > cameraX + W) continue;
+    drawCrab(c, t);
+  }
+
+  // ── Checkpoint flag ──
+  if (checkpoint) drawCheckpointFlag(checkpoint, t);
 
   // ── Family of otters (goal / dance) ──
   if (!family.found) {
@@ -795,6 +1007,32 @@ function draw(t) {
   ctx.globalAlpha = 1;
 
   ctx.restore();
+
+  // ── Combo display (screen-space, outside camera transform) ──
+  if (comboTimer > 0 && combo >= 3) {
+    const alpha = Math.min(1, comboTimer / 30);
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = '#804000';
+    ctx.lineWidth = 4;
+    ctx.strokeText(`x${combo} COMBO!`, W / 2, 64);
+    ctx.fillStyle = '#ffe040';
+    ctx.fillText(`x${combo} COMBO!`, W / 2, 64);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left';
+  }
+
+  // ── Speed-boost indicator ──
+  if (player && player.speedBoost > 0) {
+    ctx.globalAlpha = 0.85;
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#40e0ff';
+    ctx.fillText('⚡ SPEED', W - 10, 52);
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ─── Draw helpers ────────────────────────────────────────────────────────────
@@ -874,6 +1112,108 @@ function drawClam(x, y) {
   ctx.ellipse(x - 3, y - 2, 2, 1.5, -0.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+}
+
+function drawGoldenClam(x, y, t, type) {
+  ctx.save();
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur  = 10 + Math.sin(t * 0.01) * 4;
+  // Shell halves (golden)
+  ctx.fillStyle = '#e8c040';
+  ctx.beginPath(); ctx.ellipse(x, y, 12, 7, 0, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = '#c09010';
+  ctx.beginPath(); ctx.ellipse(x, y, 12, 5, 0, Math.PI, Math.PI * 2); ctx.fill();
+  // Inner glow
+  ctx.fillStyle = '#fffad0';
+  ctx.beginPath(); ctx.ellipse(x, y, 6, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.globalAlpha = 0.65;
+  ctx.beginPath(); ctx.ellipse(x - 3.5, y - 2, 2.5, 1.8, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  // Icon hint
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#804000';
+  ctx.fillText(type === 'speed' ? '⚡' : '✨', x, y - 14);
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawHeartItem(x, y, t) {
+  ctx.save();
+  const pulse = 1 + Math.sin(t * 0.01) * 0.15;
+  ctx.translate(x, y);
+  ctx.scale(pulse, pulse);
+  ctx.shadowColor = '#ff6080'; ctx.shadowBlur = 10;
+  ctx.font = 'bold 20px serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = PAL.heartColor;
+  ctx.fillText('♥', 0, 0);
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawCrab(c, t) {
+  const x = c.x, y = c.y;
+  const legPhase = t * 0.015 + c.legPhase;
+  ctx.save();
+  if (c.vx < 0) { ctx.scale(-1, 1); ctx.translate(-(x * 2 + c.w), 0); }
+
+  // Legs (3 pairs)
+  ctx.strokeStyle = '#a82010'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const lx = x + 6 + i * 5, ly = y + 14;
+    const swing = Math.sin(legPhase + i * 1.2) * 3;
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx - 3, ly + 8 + swing); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 22 - i * 5, ly); ctx.lineTo(x + 24 - i * 5, ly + 8 - swing); ctx.stroke();
+  }
+
+  // Body (red shell)
+  ctx.fillStyle = '#c83020';
+  ctx.beginPath(); ctx.ellipse(x + 14, y + 10, 13, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e85040';
+  ctx.beginPath(); ctx.ellipse(x + 14, y + 12, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Claws
+  ctx.strokeStyle = '#a82010'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x + 3, y + 8); ctx.lineTo(x - 7, y + 4 + Math.sin(legPhase) * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 3, y + 10); ctx.lineTo(x - 9, y + 12 + Math.sin(legPhase) * 2); ctx.stroke();
+  ctx.fillStyle = '#c83020';
+  ctx.beginPath(); ctx.arc(x - 7, y + 4 + Math.sin(legPhase) * 2, 4, 0, Math.PI * 2); ctx.fill();
+
+  // Eye stalks
+  ctx.fillStyle = '#a82010';
+  ctx.fillRect(x + 8,  y + 2, 3, 6);
+  ctx.fillRect(x + 17, y + 2, 3, 6);
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x + 9.5,  y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 18.5, y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x + 10,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 19,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawCheckpointFlag(cp, t) {
+  const x = cp.x, topY = cp.y, poleH = 50;
+  // Pole
+  ctx.fillStyle = '#888';
+  ctx.fillRect(x - 2, topY, 4, poleH);
+  // Base
+  ctx.fillStyle = '#666';
+  ctx.beginPath(); ctx.ellipse(x, topY + poleH, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+  // Flag
+  const wave = cp.activated ? Math.sin(t * 0.009) * 5 : 0;
+  ctx.fillStyle = cp.activated ? '#40cc40' : '#aaaaaa';
+  ctx.beginPath();
+  ctx.moveTo(x + 2, topY);
+  ctx.lineTo(x + 20 + wave, topY + 7);
+  ctx.lineTo(x + 2, topY + 14);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawFamilyOtters(t) {
@@ -1303,6 +1643,9 @@ function updateHUD() {
     s.textContent = '♥';
     livesPip.appendChild(s);
   }
+  // High score
+  const hsEl = document.getElementById('high-score');
+  if (hsEl) hsEl.textContent = `Best: ${highScore} 🦪`;
 }
 
 function showMessage(text, duration = 90) {

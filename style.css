@@ -77,6 +77,13 @@ body {
   line-height: 1.2;
 }
 
+#hud-hs {
+  font-size: 0.68rem;
+  color: #ffe08a;
+  letter-spacing: 1px;
+  opacity: 0.85;
+}
+
 .hud-label {
   font-size: 0.62rem;
   text-transform: uppercase;
