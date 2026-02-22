@@ -942,8 +942,7 @@ function hitByPredator() {
     state = 'gameover';
     showScreen(gameoverScreen);
   } else {
-    resetPlayer();
-    cameraX = 0;
+    startLevel();
     player.invincible = 100;
   }
 }
