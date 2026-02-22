@@ -307,6 +307,109 @@ const HATS = [
     }
   },
   {
+    id: 'beanie', name: 'Beanie', price: 8,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 4*s);
+      // Rim
+      ctx.fillStyle = '#c02828';
+      ctx.beginPath(); ctx.ellipse(0, 0, 13*s, 4.5*s, 0, 0, Math.PI*2); ctx.fill();
+      // Striped dome (clipped)
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(0, -1*s, 12*s, 13*s, 0, Math.PI, Math.PI*2); ctx.clip();
+      const sc = ['#e84040','#fff','#e84040','#fff','#e84040'];
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = sc[i];
+        ctx.fillRect(-13*s, -15*s + i*3.2*s, 26*s, 3.2*s);
+      }
+      ctx.restore();
+      // Pompom
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, -14*s, 3.5*s, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'hardhat', name: 'Hard Hat', price: 12,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      ctx.fillStyle = '#e8c020';
+      ctx.beginPath(); ctx.ellipse(0, 0, 16*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#f0d030';
+      ctx.beginPath(); ctx.ellipse(0, -1*s, 12*s, 13*s, 0, Math.PI, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath(); ctx.ellipse(-4*s, -10*s, 3*s, 5*s, -0.4, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'cowboy', name: 'Cowboy Hat', price: 18,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      ctx.fillStyle = '#8a5a10';
+      ctx.beginPath(); ctx.ellipse(1*s, 1*s, 18*s, 5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#c8902a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 18*s, 5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#b07820';
+      ctx.beginPath();
+      ctx.moveTo(-9*s, 0); ctx.lineTo(-8*s, -15*s); ctx.lineTo(8*s, -15*s); ctx.lineTo(9*s, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c8902a';
+      ctx.beginPath(); ctx.ellipse(0, -15*s, 4*s, 2*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3d1a08'; ctx.fillRect(-9*s, -4.5*s, 18*s, 3.5*s);
+      ctx.restore();
+    }
+  },
+  {
+    id: 'witch', name: 'Witch Hat', price: 22,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath(); ctx.ellipse(0, 0, 16*s, 4.5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#1a1a2e';
+      ctx.beginPath();
+      ctx.moveTo(-9*s, 0); ctx.bezierCurveTo(-6*s,-12*s, 3*s,-20*s, 1*s,-26*s);
+      ctx.bezierCurveTo(-1*s,-20*s, 6*s,-12*s, 9*s, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#9b30ff';
+      ctx.beginPath();
+      ctx.moveTo(-8*s,-4*s); ctx.lineTo(-6*s,-9*s); ctx.lineTo(6*s,-9*s); ctx.lineTo(8*s,-4*s);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e8c030'; ctx.fillRect(-2.5*s,-8.5*s, 5*s, 4*s);
+      ctx.fillStyle = '#1a1a2e';  ctx.fillRect(-1.2*s,-7.5*s, 2.4*s, 2*s);
+      ctx.restore();
+    }
+  },
+  {
+    id: 'santa', name: 'Santa Hat', price: 30,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 2*s);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0, 0, 14*s, 5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#e82020';
+      ctx.beginPath();
+      ctx.moveTo(-10*s, 0); ctx.lineTo(-5*s,-18*s);
+      ctx.bezierCurveTo(-2*s,-24*s, 8*s,-22*s, 10*s,-20*s);
+      ctx.lineTo(10*s, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(10*s,-20*s, 4*s, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'chef', name: 'Chef Hat', price: 35,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 2*s);
+      ctx.fillStyle = '#e8e8e8'; ctx.fillRect(-10*s,-4*s, 20*s, 4*s);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0,-4*s, 10*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0,-18*s, 10*s, 16*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1*s;
+      for (const x of [-6*s,-2*s, 2*s, 6*s]) {
+        ctx.beginPath(); ctx.moveTo(x,-5*s); ctx.lineTo(x*0.5,-20*s); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+  {
     id: 'crown', name: 'Crown', price: 45,
     draw(cx, cy, r, s) {
       ctx.save(); ctx.translate(cx, cy - r + 2*s);
@@ -321,6 +424,18 @@ const HATS = [
       ctx.fillStyle='#3ae8e8';
       ctx.beginPath(); ctx.arc(-8*s,-2*s,1.8*s,0,Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(8*s,-2*s,1.8*s,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'halo', name: 'Halo', price: 55,
+    draw(cx, cy, r, s) {
+      ctx.save();
+      ctx.strokeStyle = '#ffe04a';
+      ctx.lineWidth = 3.5*s;
+      ctx.shadowColor = '#ffe04a';
+      ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.ellipse(cx, cy - r - 8*s, 11*s, 4*s, 0, 0, Math.PI*2); ctx.stroke();
       ctx.restore();
     }
   },
