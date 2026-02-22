@@ -321,7 +321,7 @@ bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 let player, platforms, waterZones, clamItems, hawks, eagles, sharks, family, particles, bubbles, clouds;
-let crabs, powerClams, heartItems, checkpoint;
+let crabs, powerClams, treasureBoxes, heartItems, checkpoint;
 let combo = 0, comboTimer = 0;
 let highScore = parseInt(localStorage.getItem('otterHighScore') || '0');
 
@@ -501,6 +501,21 @@ function buildLevel() {
       y: GROUND_Y - 16,
       collected: false, bob: rng() * Math.PI * 2,
       type: rng() > 0.4 ? 'speed' : 'invincible',
+    });
+  }
+
+  // ── Treasure boxes (glowing, hard to reach — reward: 10 clams or a hat) ──
+  treasureBoxes = [];
+  const tbCount = 1 + Math.floor(level * 0.3);
+  for (let i = 0; i < tbCount; i++) {
+    treasureBoxes.push({
+      x: 400 + rng() * (LEVEL_W - 800),
+      y: GROUND_Y - 195 - rng() * 90,   // needs double-jump or a platform
+      w: 28, h: 28,
+      collected: false,
+      bob: rng() * Math.PI * 2,
+      glowPhase: rng() * Math.PI * 2,
+      reward: rng() > 0.45 ? 'hat' : 'clams',
     });
   }
 
@@ -808,6 +823,27 @@ function update(dt) {
     }
   }
 
+  // ── Treasure boxes ──
+  for (const tb of treasureBoxes) {
+    if (tb.collected) continue;
+    if (rectsOverlap(pr, { x: tb.x, y: tb.y, w: tb.w, h: tb.h })) {
+      tb.collected = true;
+      spawnSparkles(tb.x + tb.w / 2, tb.y + tb.h / 2, 18);
+      sfxPowerUp();
+      const unowned = HATS.filter(h => !ownedHats.includes(h.id));
+      if (tb.reward === 'hat' && unowned.length > 0) {
+        const hat = unowned[Math.floor(rng() * unowned.length)];
+        ownedHats.push(hat.id);
+        if (!equippedHat) equippedHat = hat.id;
+        showMessage(`🎩 Found the ${hat.name}!`);
+      } else {
+        clams += 10;
+        updateHUD();
+        showMessage('✨ +10 clams!');
+      }
+    }
+  }
+
   // ── Heart collectibles (extra life) ──
   for (const h of heartItems) {
     if (h.collected) continue;
@@ -1016,6 +1052,13 @@ function draw(t) {
     drawGoldenClam(pc.x, pc.y + bob, t, pc.type);
   }
 
+  // ── Treasure boxes ──
+  for (const tb of treasureBoxes) {
+    if (tb.collected) continue;
+    if (tb.x + tb.w < cameraX - 10 || tb.x > cameraX + W + 10) continue;
+    drawTreasureBox(tb, t);
+  }
+
   // ── Heart collectibles ──
   for (const h of heartItems) {
     if (h.collected) continue;
@@ -1202,6 +1245,61 @@ function drawClam(x, y) {
   ctx.ellipse(x - 3, y - 2, 2, 1.5, -0.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+}
+
+function drawTreasureBox(tb, t) {
+  const bob = Math.sin(t * 0.003 + tb.bob) * 3;
+  const x = tb.x, y = tb.y + bob;
+  const w = tb.w, h = tb.h;
+  const glow = 12 + Math.sin(t * 0.007 + tb.glowPhase) * 7;
+
+  ctx.save();
+
+  // Outer glow
+  ctx.shadowColor = tb.reward === 'hat' ? '#c080ff' : '#ffe060';
+  ctx.shadowBlur  = glow;
+
+  // Chest body (dark wood)
+  ctx.fillStyle = '#7a4e1a';
+  ctx.fillRect(x, y + 10, w, h - 10);
+
+  // Chest lid (slightly lighter)
+  ctx.fillStyle = '#9a6228';
+  ctx.fillRect(x - 1, y, w + 2, 13);
+
+  // Gold banding — horizontal straps
+  ctx.fillStyle = '#d4a020';
+  ctx.fillRect(x, y + 10, w, 3);   // lid bottom edge
+  ctx.fillRect(x, y + h - 5, w, 3); // body bottom edge
+
+  // Gold banding — vertical centre on body
+  ctx.fillRect(x + w / 2 - 2, y + 10, 4, h - 10);
+
+  // Gold trim on lid
+  ctx.strokeStyle = '#d4a020';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x - 0.5, y - 0.5, w + 1, 14);
+
+  // Lock clasp
+  ctx.fillStyle = '#d4a020';
+  ctx.beginPath();
+  ctx.arc(x + w / 2, y + 11, 4, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(x + w / 2 - 4, y + 11, 8, 5);
+  ctx.fillStyle = '#9a6228';
+  ctx.beginPath();
+  ctx.arc(x + w / 2, y + 13, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Icon on the chest face
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = tb.reward === 'hat' ? '#e0c0ff' : '#ffe890';
+  ctx.fillText(tb.reward === 'hat' ? '🎩' : '✨', x + w / 2, y + h - 3);
+  ctx.textAlign = 'left';
+
+  ctx.restore();
 }
 
 function drawGoldenClam(x, y, t, type) {
