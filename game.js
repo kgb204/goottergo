@@ -1911,12 +1911,12 @@ function drawPlayer(t) {
   ctx.beginPath(); ctx.ellipse(px + pw - 24, py + ph * 0.04, 3, 2.5, -0.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(px + pw - 11, py + ph * 0.02, 3, 2.5, 0.2, 0, Math.PI * 2); ctx.fill();
 
-  // ── Hat (drawn on top of swimming head, tilted forward) ──
+  // ── Hat (drawn on top of swimming head) ──
   if (equippedHat) {
     const hcx = px + pw - 11, hcy = py + ph * 0.38, hr = ph * 0.48;
     ctx.save();
     ctx.translate(hcx, hcy);
-    ctx.rotate(-Math.PI / 2);  // tilt so hat faces forward
+    ctx.rotate(0.22);  // slight backward lean as otter pushes through water
     drawHatOnHead(0, 0, hr, 1.0);
     ctx.restore();
   }
