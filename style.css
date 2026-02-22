@@ -1,16 +1,20 @@
 /* ── Reset ── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* ── Root ── */
+html { height: 100%; overflow: hidden; }
+
 /* ── Body ── */
 body {
   background: #2c1f0e;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   font-family: 'Georgia', serif;
   user-select: none;
   overflow: hidden;
+  touch-action: none;   /* prevent browser pan/zoom on the whole page */
 }
 
 /* ── Game wrapper ── */
@@ -18,12 +22,14 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 #game-wrapper {
   position: relative;
-  width: 800px;
-  height: 480px;
+  /* Scale to fit viewport, never exceed native 800×480 */
+  width: min(800px, 100vw);
+  aspect-ratio: 800 / 480;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 8px 48px rgba(0,0,0,0.7), 0 0 0 3px #8b6340;
@@ -31,8 +37,8 @@ body {
 
 #gameCanvas {
   display: block;
-  width: 800px;
-  height: 480px;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── HUD ── */
@@ -225,4 +231,76 @@ button:active { filter: brightness(0.95); transform: translateY(1px); }
   color: #f5ddb0;
   margin-top: 10px;
   text-shadow: 0 0 20px rgba(200,140,60,0.6);
+}
+
+/* ── On-screen touch controls ── */
+#touch-controls {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 80px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 10px 10px;
+  pointer-events: none;   /* let game canvas receive events by default */
+  z-index: 8;
+}
+
+#touch-dpad, #touch-action {
+  display: flex;
+  gap: 8px;
+  pointer-events: all;
+}
+
+.touch-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.30);
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 1.3rem;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  transition: background 0.08s, border-color 0.08s;
+  /* Remove default button styles */
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  margin: 0;
+}
+
+.touch-btn:active {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Show touch controls only on touch/coarse pointer devices */
+@media (hover: hover) and (pointer: fine) {
+  #touch-controls { display: none; }
+}
+
+/* Mobile responsive: instructions */
+.desktop-only { display: block; }
+.mobile-only  { display: none;  }
+
+@media (hover: none), (pointer: coarse) {
+  .desktop-only { display: none;  }
+  .mobile-only  { display: block; }
+}
+
+/* Responsive panel: shrink padding on small screens */
+@media (max-width: 480px) {
+  .panel {
+    padding: 24px 20px;
+    max-width: 92vw;
+  }
+  .panel h1 { font-size: 1.8rem; }
+  .panel h2 { font-size: 1.5rem; }
 }

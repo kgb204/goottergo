@@ -24,6 +24,25 @@ document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
 document.getElementById('next-btn').addEventListener('click', () => { level++; startLevel(); });
 
+// ─── Touch / on-screen controls ───────────────────────────────────────────────
+// Bind a touch button to a logical key. pointerdown/up works for both touch & mouse.
+function bindTouchBtn(id, key, triggerJump) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    keys[key] = true;
+    if (triggerJump && state === 'playing') handleJump();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+    el.addEventListener(ev, e => { e.preventDefault(); keys[key] = false; })
+  );
+}
+
+// Prevent the canvas from triggering browser scroll / pinch-zoom on touch
+canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchmove',  e => e.preventDefault(), { passive: false });
+
 // ─── Cozy colour palette ──────────────────────────────────────────────────────
 const PAL = {
   skyTop:      '#7ec8e3',
@@ -95,6 +114,12 @@ window.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// Wire up the on-screen touch buttons (handleJump is hoisted as a function declaration)
+bindTouchBtn('btn-left',  'ArrowLeft',  false);
+bindTouchBtn('btn-right', 'ArrowRight', false);
+bindTouchBtn('btn-up',    'ArrowUp',    true);
+bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 let player, platforms, waterZones, clamItems, hawks, sharks, family, particles, bubbles, clouds;

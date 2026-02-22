@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Goottergo – Find Your Family</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -39,8 +39,9 @@
           <h1>Goottergo</h1>
           <p class="tagline">A lost little otter searching for family…</p>
           <div class="controls-box">
-            <div class="ctrl-row"><kbd>← →</kbd> Swim &amp; run</div>
-            <div class="ctrl-row"><kbd>↑</kbd> or <kbd>Space</kbd> Jump / dive</div>
+            <div class="ctrl-row desktop-only"><kbd>← →</kbd> Run &amp; swim</div>
+            <div class="ctrl-row desktop-only"><kbd>↑</kbd> or <kbd>Space</kbd> Jump / swim up</div>
+            <div class="ctrl-row mobile-only">Use the buttons below to move &amp; jump</div>
             <div class="ctrl-row">Collect <strong>clams</strong> · Avoid <strong>predators</strong></div>
             <div class="ctrl-row">Reach the <strong>otter family</strong> to win!</div>
           </div>
@@ -71,6 +72,19 @@
         </div>
 
       </div>
+
+      <!-- On-screen touch controls -->
+      <div id="touch-controls">
+        <div id="touch-dpad">
+          <button id="btn-left"  class="touch-btn" aria-label="Left">&#9664;</button>
+          <button id="btn-right" class="touch-btn" aria-label="Right">&#9654;</button>
+        </div>
+        <div id="touch-action">
+          <button id="btn-up"   class="touch-btn" aria-label="Jump">&#9650;</button>
+          <button id="btn-down" class="touch-btn" aria-label="Dive">&#9660;</button>
+        </div>
+      </div>
+
     </div>
 
   </div>
