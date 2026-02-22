@@ -1,0 +1,228 @@
+/* ── Reset ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Body ── */
+body {
+  background: #2c1f0e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Georgia', serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ── Game wrapper ── */
+#container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#game-wrapper {
+  position: relative;
+  width: 800px;
+  height: 480px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.7), 0 0 0 3px #8b6340;
+}
+
+#gameCanvas {
+  display: block;
+  width: 800px;
+  height: 480px;
+}
+
+/* ── HUD ── */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: linear-gradient(to bottom, rgba(30,20,10,0.75), transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+#hud-left { display: flex; align-items: center; gap: 6px; }
+.hud-icon { font-size: 1.3rem; }
+
+#lives-pip {
+  display: flex;
+  gap: 4px;
+}
+
+/* Heart pips drawn by JS as ♥ chars */
+#lives-pip span {
+  font-size: 1.1rem;
+  color: #e86060;
+  text-shadow: 0 0 6px #e86060;
+}
+
+#hud-center, #hud-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.hud-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #c8a87a;
+}
+
+#clam-count, #level-num {
+  font-size: 1.25rem;
+  color: #fff8ee;
+  font-weight: bold;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* ── Message ribbon ── */
+#message-ribbon {
+  position: absolute;
+  bottom: 56px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30,18,8,0.82);
+  color: #f5ddb0;
+  font-size: 0.95rem;
+  padding: 8px 24px;
+  border-radius: 20px;
+  border: 1px solid #8b6340;
+  white-space: nowrap;
+  z-index: 6;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+#message-ribbon.hidden { display: none; }
+
+/* ── Overlay ── */
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(20, 12, 4, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 10;
+  border-radius: 16px;
+}
+
+#overlay.hidden { display: none; }
+
+/* ── Panel ── */
+.panel {
+  text-align: center;
+  padding: 36px 52px;
+  background: linear-gradient(160deg, #3d2a12, #2a1a08);
+  border: 2px solid #8b6340;
+  border-radius: 20px;
+  box-shadow: 0 0 60px rgba(200,140,60,0.18), inset 0 1px 0 rgba(255,220,160,0.1);
+  max-width: 440px;
+}
+
+.panel.hidden { display: none !important; }
+
+.otter-emoji {
+  font-size: 3.2rem;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+.panel h1 {
+  font-size: 2.4rem;
+  color: #f5ddb0;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 12px rgba(200,140,60,0.4);
+  margin-bottom: 4px;
+}
+
+.panel h2 {
+  font-size: 1.9rem;
+  color: #f5ddb0;
+  margin-bottom: 10px;
+}
+
+.tagline {
+  color: #c8a87a;
+  font-size: 0.95rem;
+  font-style: italic;
+  margin-bottom: 18px;
+}
+
+.panel p {
+  color: #c8a87a;
+  font-size: 0.93rem;
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.score-line {
+  color: #f5ddb0 !important;
+  font-size: 1.05rem !important;
+  margin-top: 8px !important;
+}
+
+/* ── Controls box ── */
+.controls-box {
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  padding: 12px 18px;
+  margin: 14px 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ctrl-row {
+  font-size: 0.85rem;
+  color: #b09060;
+}
+
+.ctrl-row strong { color: #f5ddb0; }
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid #7a5a30;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8em;
+  color: #f5ddb0;
+}
+
+/* ── Button ── */
+button {
+  margin-top: 8px;
+  padding: 11px 36px;
+  font-family: 'Georgia', serif;
+  font-size: 1rem;
+  letter-spacing: 1px;
+  color: #2a1a08;
+  background: linear-gradient(to bottom, #e8b96a, #c8852a);
+  border: none;
+  border-radius: 24px;
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 3px 12px rgba(200,120,30,0.4);
+  transition: filter 0.15s, transform 0.1s;
+}
+
+button:hover  { filter: brightness(1.12); transform: translateY(-1px); }
+button:active { filter: brightness(0.95); transform: translateY(1px); }
+
+/* ── Level-up countdown ── */
+#countdown {
+  font-size: 3.5rem;
+  color: #f5ddb0;
+  margin-top: 10px;
+  text-shadow: 0 0 20px rgba(200,140,60,0.6);
+}
