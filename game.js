@@ -105,6 +105,10 @@ const PAL = {
   hawkBody:    '#6a4a20',
   hawkWing:    '#4a3010',
   hawkEye:     '#cc2020',
+  eagleBody:   '#4a3010',
+  eagleWing:   '#2e1e08',
+  eagleHead:   '#f5f0e0',
+  eagleBeak:   '#e8b020',
   sharkBody:   '#607080',
   sharkBelly:  '#c8d8e0',
   sharkFin:    '#506070',
@@ -316,7 +320,7 @@ bindTouchBtn('btn-up',    'ArrowUp',    true);
 bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
-let player, platforms, waterZones, clamItems, hawks, sharks, family, particles, bubbles, clouds;
+let player, platforms, waterZones, clamItems, hawks, eagles, sharks, family, particles, bubbles, clouds;
 let crabs, powerClams, heartItems, checkpoint;
 let combo = 0, comboTimer = 0;
 let highScore = parseInt(localStorage.getItem('otterHighScore') || '0');
@@ -402,6 +406,22 @@ function buildLevel() {
       left: hx - patrolRange / 2, right: hx + patrolRange / 2,
       dive: false, diveY: 0, diveVy: 0, diveTarget: null,
       w: 38, h: 22,
+    });
+  }
+
+  // Eagles — fly lower than hawks, can be stomped on the head
+  eagles = [];
+  const eagleCount = 1 + Math.floor(level * 0.5);
+  for (let i = 0; i < eagleCount; i++) {
+    const ex = 350 + rng() * (LEVEL_W - 700);
+    const patrolRange = 140 + rng() * 120;
+    eagles.push({
+      x: ex,
+      y: GROUND_Y - 140 - rng() * 70,   // low enough to stomp with a jump
+      vx: (rng() > 0.5 ? 1 : -1) * (0.8 + rng() * 0.5 + level * 0.07),
+      left: ex - patrolRange / 2, right: ex + patrolRange / 2,
+      w: 40, h: 26,
+      knockedOut: false, vy: 0, rot: 0, knockTimer: 0,
     });
   }
 
@@ -697,6 +717,52 @@ function update(dt) {
     }
   }
 
+  // ── Eagles (stompable) ──
+  for (let ei = eagles.length - 1; ei >= 0; ei--) {
+    const e = eagles[ei];
+    if (e.knockedOut) {
+      e.vy += GRAVITY_LAND;
+      e.y  += e.vy;
+      e.x  += e.vx * 0.25;
+      e.rot += 0.14;
+      e.knockTimer--;
+      if (e.y > GROUND_Y + 80 || e.knockTimer <= 0) eagles.splice(ei, 1);
+      continue;
+    }
+
+    // Normal patrol
+    e.x += e.vx;
+    if (e.x <= e.left || e.x + e.w >= e.right) e.vx *= -1;
+
+    if (player.invincible > 0) continue;
+
+    const eagleTop = e.y + 4;
+    const playerBottom = player.y + player.h;
+    const overlapX = player.x + player.w > e.x + 6 && player.x < e.x + e.w - 6;
+
+    // Stomp: player falling, feet hit the top of the eagle's head
+    if (player.vy > 0 && overlapX &&
+        playerBottom >= eagleTop && playerBottom <= eagleTop + 16 &&
+        player.y < e.y + e.h / 2) {
+      e.knockedOut = true;
+      e.vy = -3;
+      e.knockTimer = 100;
+      player.vy = -10;  // bounce the player upward
+      clams += 3;
+      updateHUD();
+      spawnSparkles(e.x + e.w / 2, e.y, 10);
+      sfxJump();
+      combo++;
+      continue;
+    }
+
+    // Side / bottom hit — hurts the player
+    if (rectsOverlap(pr, { x: e.x + 6, y: e.y + 4, w: e.w - 12, h: e.h - 8 })) {
+      hitByPredator();
+      return;
+    }
+  }
+
   // ── Sharks ──
   for (const sh of sharks) {
     sh.x += sh.vx;
@@ -984,6 +1050,12 @@ function draw(t) {
   for (const h of hawks) {
     if (h.x + h.w < cameraX - 10 || h.x > cameraX + W + 10) continue;
     drawHawk(h, t);
+  }
+
+  // ── Eagles ──
+  for (const e of eagles) {
+    if (e.x + e.w < cameraX - 10 || e.x > cameraX + W + 10) continue;
+    drawEagle(e, t);
   }
 
   // ── Player ──
@@ -1589,6 +1661,81 @@ function drawHawk(h, t) {
   ctx.lineTo(hx + h.w + 6, hy + 9);
   ctx.lineTo(hx + h.w - 1, hy + 11);
   ctx.fill();
+
+  ctx.restore();
+}
+
+function drawEagle(e, t) {
+  const ex = e.x, ey = e.y;
+  ctx.save();
+
+  if (e.knockedOut) {
+    // Spin and fall upside-down
+    ctx.translate(ex + e.w / 2, ey + e.h / 2);
+    ctx.rotate(e.rot);
+    ctx.translate(-(ex + e.w / 2), -(ey + e.h / 2));
+    ctx.globalAlpha = Math.max(0.2, e.knockTimer / 100);
+  } else if (e.vx < 0) {
+    ctx.scale(-1, 1);
+    ctx.translate(-(ex * 2 + e.w), 0);
+  }
+
+  const wingFlap = e.knockedOut ? Math.PI / 2 : Math.sin(t * 0.02) * 10;
+
+  // Wings (dark brown)
+  ctx.fillStyle = PAL.eagleWing;
+  // Left wing
+  ctx.beginPath();
+  ctx.moveTo(ex + 5, ey + 10);
+  ctx.quadraticCurveTo(ex - 8, ey + wingFlap, ex - 20, ey + 6 + wingFlap);
+  ctx.quadraticCurveTo(ex - 6, ey + 18, ex + 5, ey + 14);
+  ctx.fill();
+  // Right wing
+  ctx.beginPath();
+  ctx.moveTo(ex + e.w - 5, ey + 10);
+  ctx.quadraticCurveTo(ex + e.w + 8, ey + wingFlap, ex + e.w + 20, ey + 6 + wingFlap);
+  ctx.quadraticCurveTo(ex + e.w + 6, ey + 18, ex + e.w - 5, ey + 14);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = PAL.eagleBody;
+  ctx.beginPath();
+  ctx.ellipse(ex + e.w / 2, ey + e.h / 2 + 2, e.w / 2 - 2, e.h / 2 - 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White head (bald eagle style)
+  ctx.fillStyle = PAL.eagleHead;
+  ctx.beginPath();
+  ctx.arc(ex + e.w - 8, ey + 7, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Beak
+  ctx.fillStyle = PAL.eagleBeak;
+  ctx.beginPath();
+  ctx.moveTo(ex + e.w - 2, ey + 9);
+  ctx.lineTo(ex + e.w + 7, ey + 12);
+  ctx.lineTo(ex + e.w - 2, ey + 14);
+  ctx.fill();
+
+  if (e.knockedOut) {
+    // X eyes
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    const ex2 = ex + e.w - 5, ey2 = ey + 6;
+    ctx.beginPath(); ctx.moveTo(ex2 - 2, ey2 - 2); ctx.lineTo(ex2 + 2, ey2 + 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ex2 + 2, ey2 - 2); ctx.lineTo(ex2 - 2, ey2 + 2); ctx.stroke();
+  } else {
+    // Normal eye
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(ex + e.w - 5, ey + 6, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(ex + e.w - 4.2, ey + 5.2, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.restore();
 }
