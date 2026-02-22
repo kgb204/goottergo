@@ -11,6 +11,7 @@ const startScreen    = document.getElementById('start-screen');
 const gameoverScreen = document.getElementById('gameover-screen');
 const winScreen      = document.getElementById('win-screen');
 const levelupScreen  = document.getElementById('levelup-screen');
+const hatShopScreen  = document.getElementById('hat-shop');
 const livesPip       = document.getElementById('lives-pip');
 const clamCountEl    = document.getElementById('clam-count');
 const levelNumEl     = document.getElementById('level-num');
@@ -22,7 +23,8 @@ const msgRibbon      = document.getElementById('message-ribbon');
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
-document.getElementById('next-btn').addEventListener('click', () => { level++; startLevel(); });
+document.getElementById('next-btn').addEventListener('click', openHatShop);
+document.getElementById('shop-done-btn').addEventListener('click', () => { level++; startLevel(); });
 
 // ─── Touch / on-screen controls ───────────────────────────────────────────────
 // Bind a touch button to a logical key. pointerdown/up works for both touch & mouse.
@@ -123,6 +125,128 @@ const LAND_FRIC     = 0.78;
 const LEVEL_W   = 3000;
 const GROUND_Y  = H - 90;   // top of sandy ground
 const WATER_Y   = GROUND_Y; // water surface at the same height (water bodies are sunken)
+
+// ─── Hat state ────────────────────────────────────────────────────────────────
+let ownedHats   = [];   // array of hat ids owned this run
+let equippedHat = null; // id of currently worn hat, or null
+
+// Hat definitions — draw(cx, cy, r, s): cx/cy = head centre, r = head radius, s = scale
+const HATS = [
+  {
+    id: 'leaf', name: 'Leaf Hat', price: 5,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r - 1*s); ctx.rotate(-0.35);
+      ctx.fillStyle = '#5ab832';
+      ctx.beginPath(); ctx.ellipse(0, -5*s, 5*s, 10*s, 0.2, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#3a8020'; ctx.lineWidth = 0.8*s;
+      ctx.beginPath(); ctx.moveTo(0, 3*s); ctx.lineTo(0, -9*s); ctx.stroke();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'party', name: 'Party Hat', price: 10,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 2*s);
+      ctx.fillStyle = '#e83a9e';
+      ctx.beginPath(); ctx.moveTo(0,-20*s); ctx.lineTo(-9*s,0); ctx.lineTo(9*s,0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff';
+      for (const [dx, dy] of [[-3*s,-8*s],[3*s,-13*s],[0,-5*s]]) {
+        ctx.beginPath(); ctx.arc(dx, dy, 1.5*s, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle = '#ffe04a';
+      ctx.beginPath(); ctx.arc(0, -20*s, 3*s, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'bucket', name: 'Bucket Hat', price: 15,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      ctx.fillStyle = '#5a8ec8';
+      ctx.beginPath(); ctx.ellipse(0, 0, 14*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#4a7eb8';
+      ctx.beginPath(); ctx.ellipse(0, -6*s, 10*s, 9*s, 0, Math.PI, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, -14*s, 10*s, 3.5*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'flowers', name: 'Flower Crown', price: 20,
+    draw(cx, cy, r, s) {
+      const cols = ['#ff6b9d','#ffcf4a','#ff8a4a','#b469ff','#6bc5ff','#ff6b6b'];
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 5) * i - Math.PI;
+        const fx = cx + Math.cos(angle) * (r + 2*s);
+        const fy = cy + Math.sin(angle) * (r + 2*s);
+        if (fy > cy) continue;
+        ctx.fillStyle = cols[i % cols.length];
+        for (let p = 0; p < 5; p++) {
+          const pa = (Math.PI*2/5)*p;
+          ctx.beginPath(); ctx.arc(fx + Math.cos(pa)*3*s, fy + Math.sin(pa)*3*s, 2.5*s, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle = '#ffe04a';
+        ctx.beginPath(); ctx.arc(fx, fy, 2*s, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  },
+  {
+    id: 'tophat', name: 'Top Hat', price: 25,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 2*s);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 15*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-10*s,0); ctx.lineTo(-9*s,-18*s); ctx.lineTo(9*s,-18*s); ctx.lineTo(10*s,0); ctx.closePath();
+      ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, -18*s, 9*s, 3*s, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#8b6340'; ctx.fillRect(-10*s, -6*s, 20*s, 3.5*s);
+      ctx.restore();
+    }
+  },
+  {
+    id: 'pirate', name: 'Pirate Hat', price: 30,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 3*s);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.moveTo(0,-18*s); ctx.lineTo(16*s,-2*s); ctx.lineTo(10*s,3*s);
+      ctx.lineTo(-10*s,3*s); ctx.lineTo(-16*s,-2*s); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0,-8*s,3*s,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(0,-8*s,1.5*s,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#fff'; ctx.lineWidth=1.5*s; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-4*s,-4*s); ctx.lineTo(4*s,-12*s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(4*s,-4*s); ctx.lineTo(-4*s,-12*s); ctx.stroke();
+      ctx.restore();
+    }
+  },
+  {
+    id: 'crown', name: 'Crown', price: 45,
+    draw(cx, cy, r, s) {
+      ctx.save(); ctx.translate(cx, cy - r + 2*s);
+      ctx.fillStyle = '#e8c030';
+      ctx.beginPath();
+      ctx.moveTo(-13*s,0); ctx.lineTo(-13*s,-10*s); ctx.lineTo(-8*s,-5*s);
+      ctx.lineTo(-4*s,-14*s); ctx.lineTo(0,-8*s); ctx.lineTo(4*s,-14*s);
+      ctx.lineTo(8*s,-5*s); ctx.lineTo(13*s,-10*s); ctx.lineTo(13*s,0);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='#c8a020'; ctx.lineWidth=1.5*s; ctx.stroke();
+      ctx.fillStyle='#e83a3a'; ctx.beginPath(); ctx.arc(0,-5*s,2.5*s,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#3ae8e8';
+      ctx.beginPath(); ctx.arc(-8*s,-2*s,1.8*s,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(8*s,-2*s,1.8*s,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+  },
+];
+
+function drawHatOnHead(cx, cy, r, s) {
+  if (!equippedHat) return;
+  const hat = HATS.find(h => h.id === equippedHat);
+  if (hat) hat.draw(cx, cy, r, s);
+}
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 let state   = 'start';
@@ -904,6 +1028,9 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking)
   ctx.beginPath(); ctx.moveTo(wx, wy);          ctx.lineTo(wx + 13 * s, wy);          ctx.stroke();
   ctx.beginPath(); ctx.moveTo(wx, wy + 2 * s);  ctx.lineTo(wx + 12 * s, wy + 4 * s);  ctx.stroke();
 
+  // ── Hat ──
+  drawHatOnHead(bx, hdY, headR, s);
+
   ctx.restore();
 }
 
@@ -1028,6 +1155,16 @@ function drawPlayer(t) {
   ctx.fillStyle = '#c87878';
   ctx.beginPath(); ctx.ellipse(px + pw - 24, py + ph * 0.04, 3, 2.5, -0.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(px + pw - 11, py + ph * 0.02, 3, 2.5, 0.2, 0, Math.PI * 2); ctx.fill();
+
+  // ── Hat (drawn on top of swimming head, tilted forward) ──
+  if (equippedHat) {
+    const hcx = px + pw - 11, hcy = py + ph * 0.38, hr = ph * 0.48;
+    ctx.save();
+    ctx.translate(hcx, hcy);
+    ctx.rotate(-Math.PI / 2);  // tilt so hat faces forward
+    drawHatOnHead(0, 0, hr, 1.0);
+    ctx.restore();
+  }
 
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -1158,8 +1295,47 @@ function showMessage(text, duration = 90) {
 // ─── Screen helpers ───────────────────────────────────────────────────────────
 function showScreen(el) {
   overlay.classList.remove('hidden');
-  [startScreen, gameoverScreen, winScreen, levelupScreen].forEach(s => s.classList.add('hidden'));
+  [startScreen, gameoverScreen, winScreen, levelupScreen, hatShopScreen].forEach(s => s.classList.add('hidden'));
   el.classList.remove('hidden');
+}
+
+function openHatShop() {
+  document.getElementById('shop-clam-count').textContent = clams;
+  const grid = document.getElementById('hat-grid');
+  grid.innerHTML = '';
+  for (const hat of HATS) {
+    const owned    = ownedHats.includes(hat.id);
+    const equipped = equippedHat === hat.id;
+    const item = document.createElement('div');
+    item.className = 'hat-item' + (equipped ? ' equipped' : '');
+    item.innerHTML = `<span class="hat-name">${hat.name}</span>`;
+    if (!owned) {
+      const price = document.createElement('span');
+      price.className = 'hat-price';
+      price.textContent = `${hat.price} 🦪`;
+      item.appendChild(price);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'hat-btn';
+    if (owned) {
+      btn.textContent = equipped ? 'Wearing ✓' : 'Equip';
+      btn.disabled = equipped;
+      btn.addEventListener('click', () => { equippedHat = hat.id; openHatShop(); });
+    } else {
+      btn.textContent = clams >= hat.price ? `Buy ${hat.price} 🦪` : `Need ${hat.price} 🦪`;
+      btn.disabled = clams < hat.price;
+      btn.addEventListener('click', () => {
+        clams -= hat.price;
+        ownedHats.push(hat.id);
+        equippedHat = hat.id;
+        updateHUD();
+        openHatShop();
+      });
+    }
+    item.appendChild(btn);
+    grid.appendChild(item);
+  }
+  showScreen(hatShopScreen);
 }
 
 function hideOverlay() { overlay.classList.add('hidden'); }
@@ -1181,6 +1357,8 @@ function startGame() {
   clams = 0;
   lives = 3;
   level = 1;
+  ownedHats   = [];
+  equippedHat = null;
   startLevel();
 }
 

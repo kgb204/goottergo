@@ -321,6 +321,50 @@ button:active { filter: brightness(0.95); transform: translateY(1px); }
   .mobile-only  { display: block; }
 }
 
+/* ── Hat shop ── */
+.shop-clams {
+  color: #f5ddb0;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+}
+
+#hat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+  padding-right: 2px;
+}
+
+.hat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  background: rgba(0,0,0,0.22);
+  border-radius: 10px;
+  border: 1px solid rgba(139,99,64,0.4);
+}
+.hat-item.equipped {
+  border-color: #e8b96a;
+  background: rgba(232,185,106,0.12);
+}
+
+.hat-name  { font-size: 0.78rem; color: #f5ddb0; text-align: center; }
+.hat-price { font-size: 0.72rem; color: #c8a87a; }
+
+.hat-btn {
+  margin: 2px 0 0;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  letter-spacing: 0;
+  border-radius: 16px;
+}
+.hat-btn:disabled { opacity: 0.45; filter: none; transform: none; cursor: default; }
+
 /* Responsive panel: shrink padding on small screens */
 @media (max-width: 480px) {
   .panel {
