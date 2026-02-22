@@ -139,8 +139,8 @@ function buildLevel() {
   let wcur = 180;
   while (wcur < LEVEL_W - 280) {
     const ww = 200 + rng() * 180;
-    const wy = GROUND_Y + 4;      // surface just below ground top
-    const wd = 90 + rng() * 50;   // depth
+    const wy = GROUND_Y;           // surface at ground level so player can enter
+    const wd = 100 + rng() * 50;  // depth
     waterZones.push({ x: wcur, y: wy, w: ww, h: wd, surfaceY: wy });
     // smaller gap between zones so water dominates
     wcur += ww + 60 + rng() * 110;
@@ -233,10 +233,11 @@ function update(dt) {
   if (state !== 'playing') return;
 
   // ── Determine water state ──
+  // Use center-x so half-in/half-out doesn't flicker; enter when feet reach ground level
   let inWaterZone = null;
+  const pcx = player.x + player.w / 2;
   for (const wz of waterZones) {
-    if (player.x + player.w > wz.x && player.x < wz.x + wz.w &&
-        player.y + player.h > wz.y && player.y < wz.y + wz.h) {
+    if (pcx > wz.x && pcx < wz.x + wz.w && player.y + player.h >= wz.y) {
       inWaterZone = wz;
       break;
     }
@@ -261,8 +262,6 @@ function update(dt) {
     // Gentle down-key swim
     if (keys['ArrowDown'] || keys['s']) player.vy = Math.min(player.vy + 0.4, 3);
     player.vy *= 0.9;
-    // Float near surface
-    if (player.y < inWaterZone.surfaceY && player.vy < 0) player.vy *= 0.5;
     player.jumpsLeft = 2;
     // Bubble trail
     if (Math.random() < 0.12) spawnBubble(player.x + player.w / 2, player.y + player.h / 2);
@@ -281,9 +280,12 @@ function update(dt) {
   player.onGround = false;
   if (!player.inWater) {
     for (const p of platforms) {
+      // Skip the main ground slab directly over water zones so the otter can enter pools
+      if (p.type === 'sand' && p.x === 0) {
+        if (waterZones.some(wz => pcx > wz.x && pcx < wz.x + wz.w)) continue;
+      }
       // Top collision (landing)
-      if (player.vx >= -MOVE_SPEED - 1 &&  // wide check not needed, standard rect
-          player.x + player.w > p.x && player.x < p.x + p.w &&
+      if (player.x + player.w > p.x && player.x < p.x + p.w &&
           player.y + player.h > p.y && player.y + player.h < p.y + p.h + 14 &&
           player.vy >= 0) {
         player.y = p.y - player.h;
@@ -294,14 +296,8 @@ function update(dt) {
     }
   }
 
-  // ── Water surface clamp ──
+  // ── Water bottom clamp (no top clamp — player swims out naturally) ──
   if (inWaterZone) {
-    // Don't float above the surface
-    if (player.y < inWaterZone.surfaceY - 2 && player.vy < 0) {
-      player.y = inWaterZone.surfaceY - 2;
-      player.vy = 0;
-    }
-    // Don't sink through the bottom
     const wzBottom = inWaterZone.y + inWaterZone.h - player.h;
     if (player.y > wzBottom) { player.y = wzBottom; player.vy = 0; }
   }
@@ -346,14 +342,14 @@ function update(dt) {
       if (distX < 120 && player.y > h.y && !player.inWater && level >= 1) {
         h.dive    = true;
         h.diveY   = player.y + player.h;
-        h.diveVy  = 1.6 + level * 0.2;
+        h.diveVy  = 0.9 + level * 0.12;
         h.savedY  = h.y;
         h.savedVx = h.vx;
       }
     } else {
       // Diving
       h.y += h.diveVy;
-      h.diveVy = Math.min(h.diveVy + 0.15, 4.5);
+      h.diveVy = Math.min(h.diveVy + 0.08, 2.8);
       if (h.y > h.diveY + 30 || h.y > GROUND_Y - 20) {
         // Return to sky
         h.y    = h.savedY || 80;
@@ -508,7 +504,15 @@ function draw(t) {
   ctx.save();
   ctx.translate(-cameraX, 0);
 
-  // ── Water zones (painted under ground) ──
+  // ── Ground (sand) ──
+  const sandGrad = ctx.createLinearGradient(0, GROUND_Y, 0, H);
+  sandGrad.addColorStop(0, PAL.sandTop);
+  sandGrad.addColorStop(0.2, PAL.sandBody);
+  sandGrad.addColorStop(1, '#a07838');
+  ctx.fillStyle = sandGrad;
+  ctx.fillRect(0, GROUND_Y, LEVEL_W, H - GROUND_Y);
+
+  // ── Water zones (drawn over sand so they're visible as blue pools) ──
   for (const wz of waterZones) {
     if (wz.x + wz.w < cameraX || wz.x > cameraX + W) continue;
     const wGrad = ctx.createLinearGradient(0, wz.y, 0, wz.y + wz.h);
@@ -524,14 +528,6 @@ function draw(t) {
     ctx.fillRect(wz.x + shimX, wz.y, 30, 5);
     ctx.fillRect(wz.x + (shimX + wz.w * 0.5) % wz.w, wz.y + 3, 20, 3);
   }
-
-  // ── Ground (sand) ──
-  const sandGrad = ctx.createLinearGradient(0, GROUND_Y, 0, H);
-  sandGrad.addColorStop(0, PAL.sandTop);
-  sandGrad.addColorStop(0.2, PAL.sandBody);
-  sandGrad.addColorStop(1, '#a07838');
-  ctx.fillStyle = sandGrad;
-  ctx.fillRect(0, GROUND_Y, LEVEL_W, H - GROUND_Y);
 
   // ── Floating platforms ──
   for (const p of platforms) {
