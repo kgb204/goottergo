@@ -20,6 +20,9 @@ const winClamsEl     = document.getElementById('win-clams');
 const nextLevelNumEl = document.getElementById('next-level-num');
 const countdownEl    = document.getElementById('countdown');
 const msgRibbon      = document.getElementById('message-ribbon');
+const otterNameInput = document.getElementById('otter-name');
+
+let otterName = '';
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
@@ -594,6 +597,7 @@ function hitByPredator() {
   showMessage('Careful, little otter! 💦');
   if (lives <= 0) {
     finalClamsEl.textContent = clams;
+    document.getElementById('gameover-name').textContent = otterName || 'The little otter';
     state = 'gameover';
     showScreen(gameoverScreen);
   } else {
@@ -606,6 +610,7 @@ function hitByPredator() {
 function triggerWin() {
   state = 'win';
   winClamsEl.textContent = clams;
+  document.getElementById('win-name').textContent = otterName || 'The otter';
   spawnSparkles(family.x + family.w / 2, family.y, 24);
   setTimeout(() => showScreen(winScreen), 2800); // delay to enjoy the dance party
 }
@@ -753,6 +758,20 @@ function draw(t) {
 
   // ── Player ──
   drawPlayer(t);
+
+  // ── Player name label ──
+  if (otterName) {
+    const nameX = player.x + player.w / 2;
+    const nameY = player.inWater ? player.y - 8 : player.y - 50;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillText(otterName, nameX + 1, nameY + 1);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(otterName, nameX, nameY);
+    ctx.textBaseline = 'alphabetic';
+  }
 
   // ── Particles ──
   for (const p of particles) {
@@ -979,16 +998,16 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking)
   ctx.fillStyle = PAL.otterBelly;
   ctx.beginPath(); ctx.ellipse(bx + 3 * s, midY + 2 * s, 8 * s, bodyH * 0.38, 0.1, 0, Math.PI * 2); ctx.fill();
 
-  // ── Arms (raise up when dancing) ──
+  // ── Arms (hang down at rest, raise when dancing) ──
   ctx.strokeStyle = PAL.otterBrown;
   ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(bx - 12 * s, shdY + 6 * s);
-  ctx.lineTo(bx - 12 * s - lUp * 8 * s, shdY + 6 * s - lUp * 16 * s);
+  ctx.lineTo(bx - 24 * s - lUp * 10 * s, shdY + 22 * s - lUp * 34 * s);
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(bx + 12 * s, shdY + 6 * s);
-  ctx.lineTo(bx + 12 * s + rUp * 8 * s, shdY + 6 * s - rUp * 16 * s);
+  ctx.lineTo(bx + 24 * s + rUp * 10 * s, shdY + 22 * s - rUp * 34 * s);
   ctx.stroke();
 
   // ── Head ──
@@ -1354,6 +1373,7 @@ function showLevelUp() {
 
 // ─── Game lifecycle ───────────────────────────────────────────────────────────
 function startGame() {
+  otterName   = otterNameInput.value.trim() || 'Otter';
   clams = 0;
   lives = 3;
   level = 1;

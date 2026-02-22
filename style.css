@@ -177,6 +177,44 @@ body {
   margin-top: 8px !important;
 }
 
+/* ── Name input (start screen) ── */
+.name-input-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+
+.name-input-row label {
+  font-size: 0.85rem;
+  color: #c8a87a;
+  letter-spacing: 1px;
+}
+
+.name-input-row input {
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid #8b6340;
+  border-radius: 20px;
+  color: #f5ddb0;
+  font-family: 'Georgia', serif;
+  font-size: 1rem;
+  text-align: center;
+  width: 180px;
+  outline: none;
+  transition: border-color 0.2s;
+  user-select: text;
+}
+
+.name-input-row input:focus {
+  border-color: #e8b96a;
+}
+
+.name-input-row input::placeholder {
+  color: rgba(200,168,122,0.45);
+}
+
 /* ── Controls box ── */
 .controls-box {
   background: rgba(0,0,0,0.25);

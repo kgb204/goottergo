@@ -38,6 +38,10 @@
           <div class="otter-emoji">🦦</div>
           <h1>Go Otter Go!</h1>
           <p class="tagline">A lost little otter searching for family…</p>
+          <div class="name-input-row">
+            <label for="otter-name">Name your otter:</label>
+            <input type="text" id="otter-name" maxlength="16" placeholder="Otto" autocomplete="off" />
+          </div>
           <div class="controls-box">
             <div class="ctrl-row desktop-only"><kbd>← →</kbd> Run &amp; swim</div>
             <div class="ctrl-row desktop-only"><kbd>↑</kbd> or <kbd>Space</kbd> Jump / swim up</div>
@@ -51,7 +55,7 @@
         <div id="gameover-screen" class="panel hidden">
           <div class="otter-emoji">😢</div>
           <h2>Oh no…</h2>
-          <p>The little otter couldn't make it home.</p>
+          <p><span id="gameover-name">The little otter</span> couldn't make it home.</p>
           <p class="score-line">Clams collected: <span id="final-clams">0</span></p>
           <button id="restart-btn">Try Again</button>
         </div>
@@ -59,7 +63,7 @@
         <div id="win-screen" class="panel hidden">
           <div class="otter-emoji">🥰</div>
           <h2>Family Reunited!</h2>
-          <p>The otter found everyone safe and warm.</p>
+          <p><span id="win-name">The otter</span> found everyone safe and warm.</p>
           <p class="score-line">Clams collected: <span id="win-clams">0</span></p>
           <button id="next-btn">Next Level</button>
         </div>
