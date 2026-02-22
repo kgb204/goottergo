@@ -27,8 +27,9 @@ body {
 
 #game-wrapper {
   position: relative;
-  /* Scale to fit viewport, never exceed native 800×480 */
-  width: min(800px, 100vw);
+  /* Scale to fit viewport in both orientations, never exceed native 800×480.
+     The third term caps width so that aspect-ratio never makes height exceed 100dvh. */
+  width: min(800px, 100vw, calc(100dvh * 800 / 480));
   aspect-ratio: 800 / 480;
   border-radius: 16px;
   overflow: hidden;
