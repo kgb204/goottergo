@@ -923,7 +923,19 @@ function update(dt) {
   }
 
   // ── Hawks ──
-  for (const h of hawks) {
+  for (let hi = hawks.length - 1; hi >= 0; hi--) {
+    const h = hawks[hi];
+
+    if (h.knockedOut) {
+      h.vy += GRAVITY_LAND;
+      h.y  += h.vy;
+      h.x  += h.vx * 0.25;
+      h.rot += 0.14;
+      h.knockTimer--;
+      if (h.y > GROUND_Y + 80 || h.knockTimer <= 0) hawks.splice(hi, 1);
+      continue;
+    }
+
     // Patrol
     if (!h.dive) {
       h.x += h.vx;
@@ -951,6 +963,30 @@ function update(dt) {
     }
 
     if (player.invincible > 0) continue;
+
+    const hawkTop    = h.y + 4;
+    const playerBottom = player.y + player.h;
+    const overlapX   = player.x + player.w > h.x + 6 && player.x < h.x + h.w - 6;
+
+    // Stomp: player falling, feet land on the hawk's head
+    if (player.vy > 0 && overlapX &&
+        playerBottom >= hawkTop && playerBottom <= hawkTop + 16 &&
+        player.y < h.y + h.h / 2) {
+      h.knockedOut = true;
+      h.vy = -3;
+      h.knockTimer = 100;
+      h.rot = 0;
+      h.dive = false;
+      player.vy = -10;
+      clams += 3;
+      updateHUD();
+      spawnSparkles(h.x + h.w / 2, h.y, 10);
+      sfxJump();
+      combo++;
+      continue;
+    }
+
+    // Side / bottom hit — hurts the player
     if (rectsOverlap(pr, { x: h.x + 6, y: h.y + 4, w: h.w - 12, h: h.h - 8 })) {
       hitByPredator();
       h.dive = false;
@@ -2006,7 +2042,14 @@ function drawHawk(h, t) {
   const wingFlap = Math.sin(t * 0.018) * 8;
 
   ctx.save();
-  if (h.vx < 0) { ctx.scale(-1, 1); ctx.translate(-(hx * 2 + h.w), 0); }
+  if (h.knockedOut) {
+    ctx.translate(hx + h.w / 2, hy + h.h / 2);
+    ctx.rotate(h.rot);
+    ctx.translate(-(hx + h.w / 2), -(hy + h.h / 2));
+    ctx.globalAlpha = Math.max(0.2, h.knockTimer / 100);
+  } else if (h.vx < 0) {
+    ctx.scale(-1, 1); ctx.translate(-(hx * 2 + h.w), 0);
+  }
 
   // Wings
   ctx.fillStyle = PAL.hawkWing;
