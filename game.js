@@ -26,6 +26,30 @@ let otterName = '';
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
+
+// ─── Otter type swatches ──────────────────────────────────────────────────────
+(function initSwatches() {
+  const container = document.getElementById('otter-type-swatches');
+  OTTER_TYPES.forEach((ot, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'otter-swatch' + (i === 0 ? ' active' : '');
+    btn.style.background = ot.brown;
+    btn.title = ot.name;
+    const tip = document.createElement('span');
+    tip.className = 'otter-swatch-tip';
+    tip.textContent = ot.name;
+    btn.appendChild(tip);
+    btn.addEventListener('click', () => {
+      otterTypeIdx = i;
+      applyOtterType();
+      container.querySelectorAll('.otter-swatch').forEach((b, j) => {
+        b.classList.toggle('active', j === i);
+      });
+    });
+    container.appendChild(btn);
+  });
+  applyOtterType();
+})();
 document.getElementById('next-btn').addEventListener('click', openHatShop);
 document.getElementById('shop-done-btn').addEventListener('click', () => { level++; startLevel(); });
 
@@ -290,6 +314,23 @@ function drawHatOnHead(cx, cy, r, s) {
   if (!equippedHat) return;
   const hat = HATS.find(h => h.id === equippedHat);
   if (hat) hat.draw(cx, cy, r, s);
+}
+
+// ─── Otter types ──────────────────────────────────────────────────────────────
+const OTTER_TYPES = [
+  { id: 'brown',  name: 'Brown',   brown: '#8b5e3c', belly: '#d4a872', nose: '#5a3020' },
+  { id: 'gray',   name: 'Gray',    brown: '#7a7a7a', belly: '#c8c8c8', nose: '#404040' },
+  { id: 'golden', name: 'Golden',  brown: '#b87808', belly: '#f0d060', nose: '#5a3000' },
+  { id: 'dark',   name: 'Dark',    brown: '#4a2e18', belly: '#8a5a30', nose: '#200e06' },
+  { id: 'snow',   name: 'Snowy',   brown: '#c8c0b0', belly: '#f2ede4', nose: '#9a7060' },
+];
+let otterTypeIdx = 0;
+
+function applyOtterType() {
+  const t = OTTER_TYPES[otterTypeIdx];
+  PAL.otterBrown = t.brown;
+  PAL.otterBelly = t.belly;
+  PAL.otterNose  = t.nose;
 }
 
 // ─── Game state ───────────────────────────────────────────────────────────────

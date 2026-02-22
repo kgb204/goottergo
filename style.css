@@ -240,6 +240,48 @@ body {
 
 .ctrl-row strong { color: #f5ddb0; }
 
+.otter-type-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.otter-type-label {
+  font-size: 0.85rem;
+  color: #c8a87a;
+  letter-spacing: 1px;
+}
+#otter-type-swatches {
+  display: flex;
+  gap: 10px;
+}
+.otter-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.2);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  position: relative;
+}
+.otter-swatch:hover { transform: scale(1.15); }
+.otter-swatch.active {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,0.6);
+  transform: scale(1.18);
+}
+.otter-swatch-tip {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: #d4a872;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 kbd {
   display: inline-block;
   padding: 1px 6px;
