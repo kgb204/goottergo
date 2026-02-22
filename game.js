@@ -324,8 +324,11 @@ function update(dt) {
     }
   }
 
-  // ── Water bottom clamp (no top clamp — player swims out naturally) ──
+  // ── Water surface + bottom clamp ──
+  // Top clamp keeps the otter at the waterline so buoyancy never carries it above
+  // the surface and flickers the sprite back to walking. The otter exits via the side.
   if (inWaterZone) {
+    if (player.y + player.h < inWaterZone.y) { player.y = inWaterZone.y - player.h; player.vy = 0; }
     const wzBottom = inWaterZone.y + inWaterZone.h - player.h;
     if (player.y > wzBottom) { player.y = wzBottom; player.vy = 0; }
   }
