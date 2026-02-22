@@ -489,6 +489,7 @@ function buildLevel() {
       vx: (rng() > 0.5 ? 1 : -1) * (0.5 + rng() * 0.4 + level * 0.05),
       left, right,
       w: 28, h: 20, legPhase: rng() * Math.PI * 2,
+      knockedOut: false, vy: 0, rot: 0, knockTimer: 0,
     });
   }
 
@@ -790,7 +791,18 @@ function update(dt) {
   }
 
   // ── Crabs ──
-  for (const c of crabs) {
+  for (let ci = crabs.length - 1; ci >= 0; ci--) {
+    const c = crabs[ci];
+    if (c.knockedOut) {
+      c.vy += GRAVITY_LAND;
+      c.y  += c.vy;
+      c.x  += c.vx * 0.2;
+      c.rot += 0.13;
+      c.knockTimer--;
+      if (c.y > GROUND_Y + 60 || c.knockTimer <= 0) crabs.splice(ci, 1);
+      continue;
+    }
+
     c.x += c.vx;
     if (c.x <= c.left || c.x + c.w >= c.right) c.vx *= -1;
     // Safety: turn around at water zone edges
@@ -799,7 +811,30 @@ function update(dt) {
       c.vx *= -1;
       c.x  += c.vx * 4;
     }
+
     if (player.invincible > 0) continue;
+
+    const crabTop = c.y;
+    const playerBottom = player.y + player.h;
+    const overlapX = player.x + player.w > c.x + 2 && player.x < c.x + c.w - 2;
+
+    // Stomp: player falling, feet land on top of the crab's shell
+    if (!player.inWater && player.vy > 0 && overlapX &&
+        playerBottom >= crabTop && playerBottom <= crabTop + 14 &&
+        player.y < c.y + c.h / 2) {
+      c.knockedOut = true;
+      c.vy = -2;
+      c.knockTimer = 90;
+      player.vy = -9;
+      clams += 1;
+      updateHUD();
+      spawnSparkles(c.x + c.w / 2, c.y, 8);
+      sfxJump();
+      combo++;
+      continue;
+    }
+
+    // Side / bottom hit — hurts the player
     if (!player.inWater && rectsOverlap(pr, { x: c.x + 2, y: c.y, w: c.w - 4, h: c.h })) {
       hitByPredator();
       return;
@@ -1347,7 +1382,16 @@ function drawCrab(c, t) {
   const x = c.x, y = c.y;
   const legPhase = t * 0.015 + c.legPhase;
   ctx.save();
-  if (c.vx < 0) { ctx.scale(-1, 1); ctx.translate(-(x * 2 + c.w), 0); }
+
+  if (c.knockedOut) {
+    ctx.translate(x + c.w / 2, y + c.h / 2);
+    ctx.rotate(c.rot);
+    ctx.translate(-(x + c.w / 2), -(y + c.h / 2));
+    ctx.globalAlpha = Math.max(0.2, c.knockTimer / 90);
+  } else if (c.vx < 0) {
+    ctx.scale(-1, 1);
+    ctx.translate(-(x * 2 + c.w), 0);
+  }
 
   // Legs (3 pairs)
   ctx.strokeStyle = '#a82010'; ctx.lineWidth = 2; ctx.lineCap = 'round';
@@ -1375,12 +1419,22 @@ function drawCrab(c, t) {
   ctx.fillStyle = '#a82010';
   ctx.fillRect(x + 8,  y + 2, 3, 6);
   ctx.fillRect(x + 17, y + 2, 3, 6);
-  ctx.fillStyle = '#111';
-  ctx.beginPath(); ctx.arc(x + 9.5,  y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 18.5, y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(x + 10,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + 19,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
+
+  if (c.knockedOut) {
+    // X eyes
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x + 7.5, y);  ctx.lineTo(x + 11.5, y + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 11.5, y); ctx.lineTo(x + 7.5, y + 4);  ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 16.5, y);  ctx.lineTo(x + 20.5, y + 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 20.5, y);  ctx.lineTo(x + 16.5, y + 4); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(x + 9.5,  y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 18.5, y + 2, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x + 10,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 19,  y + 1.2, 1.3, 0, Math.PI * 2); ctx.fill();
+  }
 
   ctx.restore();
 }
