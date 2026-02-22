@@ -263,7 +263,7 @@ function update(dt) {
   // flickering when the otter bobs at the waterline.
   let inWaterZone = null;
   const pcx = player.x + player.w / 2;
-  const waterEnterThreshold = player.inWater ? -6 : 0; // negative = must be above surface to exit
+  const waterEnterThreshold = player.inWater ? -16 : 0; // negative = must be above surface to exit
   for (const wz of waterZones) {
     if (pcx > wz.x && pcx < wz.x + wz.w && player.y + player.h >= wz.y + waterEnterThreshold) {
       inWaterZone = wz;
