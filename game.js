@@ -258,11 +258,14 @@ function update(dt) {
   if (state !== 'playing') return;
 
   // ── Determine water state ──
-  // Use center-x so half-in/half-out doesn't flicker; enter when feet reach ground level
+  // Use center-x so half-in/half-out doesn't flicker; enter when feet reach ground level.
+  // Hysteresis: once in water, only exit when feet are 6px above the surface to prevent
+  // flickering when the otter bobs at the waterline.
   let inWaterZone = null;
   const pcx = player.x + player.w / 2;
+  const waterEnterThreshold = player.inWater ? -6 : 0; // negative = must be above surface to exit
   for (const wz of waterZones) {
-    if (pcx > wz.x && pcx < wz.x + wz.w && player.y + player.h >= wz.y) {
+    if (pcx > wz.x && pcx < wz.x + wz.w && player.y + player.h >= wz.y + waterEnterThreshold) {
       inWaterZone = wz;
       break;
     }
