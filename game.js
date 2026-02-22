@@ -67,7 +67,7 @@ function applyOtterType() {
   });
 })();
 document.getElementById('next-btn').addEventListener('click', openHatShop);
-document.getElementById('shop-done-btn').addEventListener('click', () => { level++; startLevel(); });
+document.getElementById('shop-done-btn').addEventListener('click', () => { level++; deathCount = 0; startLevel(); });
 
 // ─── Touch / on-screen controls ───────────────────────────────────────────────
 // Bind a touch button to a logical key. pointerdown/up works for both touch & mouse.
@@ -449,9 +449,10 @@ function drawHatOnHead(cx, cy, r, s) {
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 let state   = 'start';
-let level   = 1;
-let lives   = 3;
-let clams   = 0;
+let level      = 1;
+let lives      = 3;
+let clams      = 0;
+let deathCount = 0;   // increments each death; mixed into treasure-box seed
 let cameraX = 0;
 let raf, lastTime = 0;
 let msgTimer = 0;
@@ -661,17 +662,19 @@ function buildLevel() {
   }
 
   // ── Treasure boxes (glowing, hard to reach — reward: 10 clams or a hat) ──
+  // Use a death-aware seed so boxes move to new spots each time you respawn.
+  const tbRng   = mkRng(level * 99991 + deathCount * 7919);
   treasureBoxes = [];
   const tbCount = 1 + Math.floor(level * 0.3);
   for (let i = 0; i < tbCount; i++) {
     treasureBoxes.push({
-      x: 400 + rng() * (LEVEL_W - 800),
-      y: GROUND_Y - 195 - rng() * 90,   // needs double-jump or a platform
+      x: 400 + tbRng() * (LEVEL_W - 800),
+      y: GROUND_Y - 195 - tbRng() * 90,   // needs double-jump or a platform
       w: 28, h: 28,
       collected: false,
-      bob: rng() * Math.PI * 2,
-      glowPhase: rng() * Math.PI * 2,
-      reward: rng() > 0.45 ? 'hat' : 'clams',
+      bob: tbRng() * Math.PI * 2,
+      glowPhase: tbRng() * Math.PI * 2,
+      reward: tbRng() > 0.45 ? 'hat' : 'clams',
     });
   }
 
@@ -1097,6 +1100,7 @@ function hitByPredator() {
     state = 'gameover';
     showScreen(gameoverScreen);
   } else {
+    deathCount++;
     startLevel();
     player.invincible = 100;
   }
@@ -2180,7 +2184,7 @@ function showLevelUp() {
   countdownEl.textContent = n;
   const iv = setInterval(() => {
     n--;
-    if (n <= 0) { clearInterval(iv); level++; startLevel(); }
+    if (n <= 0) { clearInterval(iv); level++; deathCount = 0; startLevel(); }
     else countdownEl.textContent = n;
   }, 1000);
 }
@@ -2189,9 +2193,10 @@ function showLevelUp() {
 function startGame() {
   applyOtterType();
   otterName   = otterNameInput.value.trim() || 'Otter';
-  clams = 0;
-  lives = 3;
-  level = 1;
+  clams      = 0;
+  lives      = 3;
+  level      = 1;
+  deathCount = 0;
   ownedHats   = [];
   equippedHat = null;
   startLevel();
