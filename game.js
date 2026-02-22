@@ -449,13 +449,25 @@ function buildLevel() {
   // ── Crabs (ground enemies) ──
   crabs = [];
   const crabCount = 1 + Math.floor(level * 0.7);
-  for (let i = 0; i < crabCount; i++) {
+  let crabAttempts = 0;
+  while (crabs.length < crabCount && crabAttempts < crabCount * 12) {
+    crabAttempts++;
     const cx = 300 + rng() * (LEVEL_W - 600);
-    const cr  = 80 + rng() * 90;
+    // Skip spawn if the crab would start inside a water zone
+    if (waterZones.some(wz => cx + 28 > wz.x && cx < wz.x + wz.w)) continue;
+    const cr = 80 + rng() * 90;
+    let left  = Math.max(60, cx - cr);
+    let right = Math.min(LEVEL_W - 60, cx + cr);
+    // Clip patrol range so crabs never cross into a water zone
+    for (const wz of waterZones) {
+      if (wz.x + wz.w <= cx && wz.x + wz.w > left)  left  = wz.x + wz.w + 2;
+      if (wz.x >= cx + 28   && wz.x < right)         right = wz.x - 2;
+    }
+    if (right - left < 36) continue; // too cramped after clipping — skip
     crabs.push({
       x: cx, y: GROUND_Y - 20,
       vx: (rng() > 0.5 ? 1 : -1) * (0.5 + rng() * 0.4 + level * 0.05),
-      left: Math.max(60, cx - cr), right: Math.min(LEVEL_W - 60, cx + cr),
+      left, right,
       w: 28, h: 20, legPhase: rng() * Math.PI * 2,
     });
   }
@@ -700,6 +712,12 @@ function update(dt) {
   for (const c of crabs) {
     c.x += c.vx;
     if (c.x <= c.left || c.x + c.w >= c.right) c.vx *= -1;
+    // Safety: turn around at water zone edges
+    const ccx = c.x + c.w / 2;
+    if (waterZones.some(wz => ccx > wz.x && ccx < wz.x + wz.w)) {
+      c.vx *= -1;
+      c.x  += c.vx * 4;
+    }
     if (player.invincible > 0) continue;
     if (!player.inWater && rectsOverlap(pr, { x: c.x + 2, y: c.y, w: c.w - 4, h: c.h })) {
       hitByPredator();
