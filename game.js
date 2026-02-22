@@ -743,7 +743,7 @@ function drawFamilyDance(t) {
   ctx.globalAlpha = 1;
 }
 
-function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff) {
+function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking) {
   const s = size, ph = phaseOff || 0;
   const phase = (t || 0) * 0.008 + ph;
 
@@ -778,18 +778,38 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff) {
   ctx.ellipse(bx - 14 * s, fy + 1 * s, 5 * s, 3 * s, 0.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // ── Legs ──
-  ctx.fillStyle = PAL.otterBrown;
-  ctx.beginPath(); ctx.roundRect(bx - 11 * s, hipY, 9 * s, legH, 3 * s); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(bx + 2  * s, hipY, 9 * s, legH, 3 * s); ctx.fill();
+  // ── Legs & Feet (pivot animation) ──
+  // Swing angle: walking alternates legs, dancing shuffles, idle = 0
+  const legSwing = dancing ? Math.sin(phase * 2.5) * 0.22
+                 : walking ? Math.sin(phase * 3.5) * 0.32
+                 : 0;
+  const lAngle = legSwing;   // left leg angle from vertical
+  const rAngle = -legSwing;  // right leg opposite phase
 
-  // ── Feet (webbed) ──
+  // Hip pivot points
+  const lHipX = bx - 5 * s, lHipY = hipY + 1 * s;
+  const rHipX = bx + 5 * s, rHipY = hipY + 1 * s;
+
+  // Foot positions — cosine gives natural lift when leg swings forward
+  const lFX = lHipX + Math.sin(lAngle) * legH;
+  const lFY = lHipY + Math.cos(lAngle) * legH;
+  const rFX = rHipX + Math.sin(rAngle) * legH;
+  const rFY = rHipY + Math.cos(rAngle) * legH;
+
+  // Legs as thick rounded strokes from hip to foot
+  ctx.strokeStyle = PAL.otterBrown;
+  ctx.lineWidth = 9 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(lHipX, lHipY); ctx.lineTo(lFX, lFY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rHipX, rHipY); ctx.lineTo(rFX, rFY); ctx.stroke();
+
+  // Feet tilt with the leg swing
   ctx.fillStyle = PAL.otterBrown;
-  ctx.beginPath(); ctx.ellipse(bx - 7 * s, fy, 10 * s, 4 * s,  0.1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(bx + 7 * s, fy, 10 * s, 4 * s, -0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(lFX, lFY + 1 * s, 10 * s, 4 * s, lAngle * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(rFX, rFY + 1 * s, 10 * s, 4 * s, rAngle * 0.4, 0, Math.PI * 2); ctx.fill();
+  // Webbing
   ctx.fillStyle = PAL.otterBelly;
-  ctx.beginPath(); ctx.ellipse(bx - 7 * s, fy, 7 * s, 2.5 * s,  0.1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(bx + 7 * s, fy, 7 * s, 2.5 * s, -0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(lFX, lFY + 1 * s, 7 * s, 2.5 * s, lAngle * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(rFX, rFY + 1 * s, 7 * s, 2.5 * s, rAngle * 0.4, 0, Math.PI * 2); ctx.fill();
 
   // ── Body ──
   ctx.fillStyle = PAL.otterBrown;
@@ -861,7 +881,8 @@ function drawPlayer(t) {
 
   // On land: draw upright standing otter
   if (!player.inWater) {
-    drawStandingOtter(px + pw / 2, py + ph, 1.2, !player.facingRight, t, state === 'win', 0);
+    const walking = Math.abs(player.vx) > 0.3;
+    drawStandingOtter(px + pw / 2, py + ph, 1.2, !player.facingRight, t, state === 'win', 0, walking);
     ctx.globalAlpha = 1;
     return;
   }
