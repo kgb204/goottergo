@@ -65,7 +65,6 @@ function applyOtterType() {
     });
     container.appendChild(btn);
   });
-  applyOtterType();
 })();
 document.getElementById('next-btn').addEventListener('click', openHatShop);
 document.getElementById('shop-done-btn').addEventListener('click', () => { level++; startLevel(); });
@@ -2073,6 +2072,7 @@ function showLevelUp() {
 
 // ─── Game lifecycle ───────────────────────────────────────────────────────────
 function startGame() {
+  applyOtterType();
   otterName   = otterNameInput.value.trim() || 'Otter';
   clams = 0;
   lives = 3;
