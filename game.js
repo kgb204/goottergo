@@ -436,7 +436,7 @@ function buildLevel() {
 
   // Hawks — patrol the sky in the land sections
   hawks = [];
-  const hawkCount = 1 + Math.floor(level * 0.8);
+  const hawkCount = 1 + Math.floor(level * 0.5);
   for (let i = 0; i < hawkCount; i++) {
     const hx = 400 + rng() * (LEVEL_W - 900);
     const patrolRange = 180 + rng() * 120;
@@ -451,7 +451,7 @@ function buildLevel() {
 
   // Eagles — fly lower than hawks, can be stomped on the head
   eagles = [];
-  const eagleCount = 1 + Math.floor(level * 0.5);
+  const eagleCount = 1 + Math.floor(level * 0.3);
   for (let i = 0; i < eagleCount; i++) {
     const ex = 350 + rng() * (LEVEL_W - 700);
     const patrolRange = 140 + rng() * 120;
