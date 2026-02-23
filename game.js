@@ -1299,6 +1299,26 @@ function draw(t) {
   }
   ctx.globalAlpha = 1;
 
+  // ── Parallax background hills (screen-space, before camera transform) ──
+  // Far hills (cool blue-green, parallax 0.12)
+  ctx.fillStyle = '#7aaeaa';
+  ctx.beginPath();
+  for (let xi = 0; xi <= W + 20; xi += 10) {
+    const wx = xi + cameraX * 0.12;
+    const hy2 = GROUND_Y - 55 - Math.sin(wx * 0.0035) * 38 - Math.sin(wx * 0.0079) * 18;
+    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
+  }
+  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+  // Near hills (richer green, parallax 0.28)
+  ctx.fillStyle = '#5a9e70';
+  ctx.beginPath();
+  for (let xi = 0; xi <= W + 20; xi += 10) {
+    const wx = xi + cameraX * 0.28;
+    const hy2 = GROUND_Y - 30 - Math.sin(wx * 0.005 + 1.8) * 24 - Math.sin(wx * 0.011 + 0.5) * 10;
+    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
+  }
+  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+
   ctx.save();
   ctx.translate(-cameraX, 0);
 
@@ -1320,11 +1340,22 @@ function draw(t) {
     ctx.fillStyle = wGrad;
     ctx.fillRect(wz.x, wz.y, wz.w, wz.h);
 
-    // Gentle water shimmer
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    const shimX = ((t * 0.05) % wz.w);
-    ctx.fillRect(wz.x + shimX, wz.y, 30, 5);
-    ctx.fillRect(wz.x + (shimX + wz.w * 0.5) % wz.w, wz.y + 3, 20, 3);
+    // Animated wave lines
+    ctx.save();
+    ctx.beginPath(); ctx.rect(wz.x, wz.y, wz.w, wz.h); ctx.clip();
+    for (let wi = 0; wi < 4; wi++) {
+      const waveY = wz.y + 5 + wi * 9;
+      const speed = (wi % 2 === 0 ? 1 : -1) * t * 0.03;
+      ctx.strokeStyle = `rgba(255,255,255,${0.18 - wi * 0.03})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let xi = 0; xi <= wz.w; xi += 6) {
+        const wy = waveY + Math.sin(xi * 0.06 + speed + wi * 1.2) * 2.5;
+        xi === 0 ? ctx.moveTo(wz.x + xi, wy) : ctx.lineTo(wz.x + xi, wy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // ── Floating platforms ──
