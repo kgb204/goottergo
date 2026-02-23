@@ -1766,7 +1766,7 @@ function drawFamilyOtters(t) {
   const offsets = [14, 54, 94]; // center-x of each of the three family members
   for (let i = 0; i < offsets.length; i++) {
     const cx = family.x + offsets[i];
-    drawStandingOtter(cx, footY, 0.88, i % 2 === 0, t, false, i * 1.5);
+    drawStandingOtter(cx, footY, 0.88, i % 2 === 0, t, false, i * 1.5, false, true);
   }
   ctx.shadowBlur = 0;
 
@@ -1789,7 +1789,7 @@ function drawFamilyDance(t) {
   const offsets = [14, 54, 94];
   for (let i = 0; i < offsets.length; i++) {
     const cx = family.x + offsets[i];
-    drawStandingOtter(cx, footY, 0.92, i % 2 === 0, t, true, i * 1.2);
+    drawStandingOtter(cx, footY, 0.92, i % 2 === 0, t, true, i * 1.2, false, true);
   }
   ctx.shadowBlur = 0;
 
@@ -1805,7 +1805,7 @@ function drawFamilyDance(t) {
   ctx.globalAlpha = 1;
 }
 
-function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking) {
+function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking, noHat) {
   const s = size, ph = phaseOff || 0;
   const phase = (t || 0) * 0.008 + ph;
 
@@ -1931,7 +1931,7 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking)
   ctx.beginPath(); ctx.moveTo(wx, wy + 2 * s);  ctx.lineTo(wx + 12 * s, wy + 4 * s);  ctx.stroke();
 
   // ── Hat ──
-  drawHatOnHead(bx, hdY, headR, s);
+  if (!noHat) drawHatOnHead(bx, hdY, headR, s);
 
   ctx.restore();
 }
