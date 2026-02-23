@@ -1136,7 +1136,7 @@ function update(dt) {
         // Prefer box-only hats; fall back to any unowned hat
         const unownedBoxOnly = unowned.filter(h => h.boxOnly);
         const pool = unownedBoxOnly.length > 0 ? unownedBoxOnly : unowned;
-        const hat = pool[Math.floor(rng() * pool.length)];
+        const hat = pool[Math.floor(Math.random() * pool.length)];
         ownedHats.push(hat.id);
         if (!equippedHat) equippedHat = hat.id;
         const tag = hat.boxOnly ? '🎁' : '🎩';
