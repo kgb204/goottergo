@@ -194,6 +194,7 @@ function sfxPowerUp()    { _playTone(480, 'square',   0.22, 0.25, 900); }
 function sfxHit()        { _playTone(160, 'sawtooth', 0.28, 0.30, 80); }
 function sfxHeart()      { _playTone(660, 'sine',     0.18, 0.22, 880); }
 function sfxCheckpoint() { _playTone(440, 'triangle', 0.12, 0.22); setTimeout(() => _playTone(660, 'triangle', 0.15, 0.22), 130); }
+function sfxThud()        { _playTone(90,  'sine',     0.18, 0.45, 35); }
 
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
@@ -861,6 +862,8 @@ function update(dt) {
   }
 
   // ── Platform collisions (only when not in water) ──
+  const _wasOnGround = player.onGround;
+  const _preLandVy   = player.vy;
   player.onGround = false;
   if (!player.inWater) {
     for (const p of platforms) {
@@ -879,6 +882,7 @@ function update(dt) {
         if (p.moving && !p.bob) player.x += p.vx; // ride horizontal moving platform
       }
     }
+    if (!_wasOnGround && player.onGround && _preLandVy > 2) sfxThud();
   }
 
   // ── Water surface + bottom clamp ──
