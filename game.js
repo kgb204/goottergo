@@ -194,6 +194,7 @@ function sfxPowerUp()    { _playTone(480, 'square',   0.22, 0.25, 900); }
 function sfxHit()        { _playTone(160, 'sawtooth', 0.28, 0.30, 80); }
 function sfxHeart()      { _playTone(660, 'sine',     0.18, 0.22, 880); }
 function sfxCheckpoint() { _playTone(440, 'triangle', 0.12, 0.22); setTimeout(() => _playTone(660, 'triangle', 0.15, 0.22), 130); }
+function sfxThud()        { _playTone(90,  'sine',     0.18, 0.45, 35); }
 
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
@@ -861,6 +862,8 @@ function update(dt) {
   }
 
   // ── Platform collisions (only when not in water) ──
+  const _wasOnGround = player.onGround;
+  const _preLandVy   = player.vy;
   player.onGround = false;
   if (!player.inWater) {
     for (const p of platforms) {
@@ -879,6 +882,7 @@ function update(dt) {
         if (p.moving && !p.bob) player.x += p.vx; // ride horizontal moving platform
       }
     }
+    if (!_wasOnGround && player.onGround && _preLandVy > 2) sfxThud();
   }
 
   // ── Water surface + bottom clamp ──
@@ -1132,7 +1136,7 @@ function update(dt) {
         // Prefer box-only hats; fall back to any unowned hat
         const unownedBoxOnly = unowned.filter(h => h.boxOnly);
         const pool = unownedBoxOnly.length > 0 ? unownedBoxOnly : unowned;
-        const hat = pool[Math.floor(rng() * pool.length)];
+        const hat = pool[Math.floor(Math.random() * pool.length)];
         ownedHats.push(hat.id);
         if (!equippedHat) equippedHat = hat.id;
         const tag = hat.boxOnly ? '🎁' : '🎩';
@@ -1299,6 +1303,26 @@ function draw(t) {
   }
   ctx.globalAlpha = 1;
 
+  // ── Parallax background hills (screen-space, before camera transform) ──
+  // Far hills (cool blue-green, parallax 0.12)
+  ctx.fillStyle = '#7aaeaa';
+  ctx.beginPath();
+  for (let xi = 0; xi <= W + 20; xi += 10) {
+    const wx = xi + cameraX * 0.12;
+    const hy2 = GROUND_Y - 55 - Math.sin(wx * 0.0035) * 38 - Math.sin(wx * 0.0079) * 18;
+    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
+  }
+  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+  // Near hills (richer green, parallax 0.28)
+  ctx.fillStyle = '#5a9e70';
+  ctx.beginPath();
+  for (let xi = 0; xi <= W + 20; xi += 10) {
+    const wx = xi + cameraX * 0.28;
+    const hy2 = GROUND_Y - 30 - Math.sin(wx * 0.005 + 1.8) * 24 - Math.sin(wx * 0.011 + 0.5) * 10;
+    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
+  }
+  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+
   ctx.save();
   ctx.translate(-cameraX, 0);
 
@@ -1320,11 +1344,22 @@ function draw(t) {
     ctx.fillStyle = wGrad;
     ctx.fillRect(wz.x, wz.y, wz.w, wz.h);
 
-    // Gentle water shimmer
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    const shimX = ((t * 0.05) % wz.w);
-    ctx.fillRect(wz.x + shimX, wz.y, 30, 5);
-    ctx.fillRect(wz.x + (shimX + wz.w * 0.5) % wz.w, wz.y + 3, 20, 3);
+    // Animated wave lines
+    ctx.save();
+    ctx.beginPath(); ctx.rect(wz.x, wz.y, wz.w, wz.h); ctx.clip();
+    for (let wi = 0; wi < 4; wi++) {
+      const waveY = wz.y + 5 + wi * 9;
+      const speed = (wi % 2 === 0 ? 1 : -1) * t * 0.03;
+      ctx.strokeStyle = `rgba(255,255,255,${0.18 - wi * 0.03})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let xi = 0; xi <= wz.w; xi += 6) {
+        const wy = waveY + Math.sin(xi * 0.06 + speed + wi * 1.2) * 2.5;
+        xi === 0 ? ctx.moveTo(wz.x + xi, wy) : ctx.lineTo(wz.x + xi, wy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // ── Floating platforms ──
@@ -1731,7 +1766,7 @@ function drawFamilyOtters(t) {
   const offsets = [14, 54, 94]; // center-x of each of the three family members
   for (let i = 0; i < offsets.length; i++) {
     const cx = family.x + offsets[i];
-    drawStandingOtter(cx, footY, 0.88, i % 2 === 0, t, false, i * 1.5);
+    drawStandingOtter(cx, footY, 0.88, i % 2 === 0, t, false, i * 1.5, false, true);
   }
   ctx.shadowBlur = 0;
 
@@ -1754,7 +1789,7 @@ function drawFamilyDance(t) {
   const offsets = [14, 54, 94];
   for (let i = 0; i < offsets.length; i++) {
     const cx = family.x + offsets[i];
-    drawStandingOtter(cx, footY, 0.92, i % 2 === 0, t, true, i * 1.2);
+    drawStandingOtter(cx, footY, 0.92, i % 2 === 0, t, true, i * 1.2, false, true);
   }
   ctx.shadowBlur = 0;
 
@@ -1770,7 +1805,7 @@ function drawFamilyDance(t) {
   ctx.globalAlpha = 1;
 }
 
-function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking) {
+function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking, noHat) {
   const s = size, ph = phaseOff || 0;
   const phase = (t || 0) * 0.008 + ph;
 
@@ -1896,7 +1931,7 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking)
   ctx.beginPath(); ctx.moveTo(wx, wy + 2 * s);  ctx.lineTo(wx + 12 * s, wy + 4 * s);  ctx.stroke();
 
   // ── Hat ──
-  drawHatOnHead(bx, hdY, headR, s);
+  if (!noHat) drawHatOnHead(bx, hdY, headR, s);
 
   ctx.restore();
 }
