@@ -215,8 +215,8 @@ function _playMusicNote(freq, dur) {
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(freq, ac.currentTime);
     gain.gain.setValueAtTime(0, ac.currentTime);
-    gain.gain.linearRampToValueAtTime(0.055, ac.currentTime + 0.05);
-    gain.gain.setValueAtTime(0.055, ac.currentTime + dur / 1000 * 0.75);
+    gain.gain.linearRampToValueAtTime(0.09, ac.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.09, ac.currentTime + dur / 1000 * 0.75);
     gain.gain.linearRampToValueAtTime(0, ac.currentTime + dur / 1000);
     osc.start(); osc.stop(ac.currentTime + dur / 1000);
   } catch(e) {}
@@ -227,7 +227,16 @@ function _musicTick(step) {
   if (freq) _playMusicNote(freq, dur);
   _musicTimeout = setTimeout(() => _musicTick((step + 1) % MUSIC_SEQ.length), dur);
 }
-function startMusic() { stopMusic(); _musicTick(0); }
+function startMusic() {
+  stopMusic();
+  const ac = _getAudio();
+  // Resume AudioContext in case browser auto-suspended it (autoplay policy)
+  if (ac.state === 'suspended') {
+    ac.resume().then(() => _musicTick(0)).catch(() => {});
+  } else {
+    _musicTick(0);
+  }
+}
 function stopMusic()  { clearTimeout(_musicTimeout); _musicTimeout = null; }
 
 // ─── Physics constants ────────────────────────────────────────────────────────
