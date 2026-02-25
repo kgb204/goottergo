@@ -196,6 +196,40 @@ function sfxHeart()      { _playTone(660, 'sine',     0.18, 0.22, 880); }
 function sfxCheckpoint() { _playTone(440, 'triangle', 0.12, 0.22); setTimeout(() => _playTone(660, 'triangle', 0.15, 0.22), 130); }
 function sfxThud()        { _playTone(90,  'sine',     0.18, 0.45, 35); }
 
+// ─── Background music ─────────────────────────────────────────────────────────
+let _musicTimeout = null;
+// Gentle pentatonic melody in C major: [freq_hz, duration_ms], freq 0 = rest
+const MUSIC_SEQ = [
+  [261.6, 700], [0, 300], [329.6, 500], [392.0, 500],
+  [0, 300],     [440.0, 700], [0, 300], [392.0, 500],
+  [329.6, 500], [0, 300], [261.6, 900], [0, 500],
+  [392.0, 500], [440.0, 700], [0, 300], [329.6, 500],
+  [293.7, 500], [0, 300], [261.6, 900], [0, 900],
+];
+function _playMusicNote(freq, dur) {
+  try {
+    const ac = _getAudio();
+    const osc  = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    gain.gain.setValueAtTime(0, ac.currentTime);
+    gain.gain.linearRampToValueAtTime(0.055, ac.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.055, ac.currentTime + dur / 1000 * 0.75);
+    gain.gain.linearRampToValueAtTime(0, ac.currentTime + dur / 1000);
+    osc.start(); osc.stop(ac.currentTime + dur / 1000);
+  } catch(e) {}
+}
+function _musicTick(step) {
+  if (state !== 'playing') return;
+  const [freq, dur] = MUSIC_SEQ[step];
+  if (freq) _playMusicNote(freq, dur);
+  _musicTimeout = setTimeout(() => _musicTick((step + 1) % MUSIC_SEQ.length), dur);
+}
+function startMusic() { stopMusic(); _musicTick(0); }
+function stopMusic()  { clearTimeout(_musicTimeout); _musicTimeout = null; }
+
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
 const GRAVITY_WATER = -0.06;  // negative = buoyancy; otter floats up when idle
@@ -1210,6 +1244,7 @@ function hitByPredator() {
     finalClamsEl.textContent = clams;
     document.getElementById('gameover-name').textContent = otterName || 'The little otter';
     state = 'gameover';
+    stopMusic();
     showScreen(gameoverScreen);
   } else {
     deathCount++;
@@ -1220,6 +1255,7 @@ function hitByPredator() {
 
 function triggerWin() {
   state = 'win';
+  stopMusic();
   if (clams > highScore) { highScore = clams; localStorage.setItem('otterHighScore', highScore); }
   winClamsEl.textContent = clams;
   document.getElementById('win-name').textContent = otterName || 'The otter';
@@ -2375,6 +2411,7 @@ function startLevel() {
   updateHUD();
   hideOverlay();
   msgRibbon.classList.add('hidden');
+  startMusic();
   if (!raf) loop(0);
 }
 
