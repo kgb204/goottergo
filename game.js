@@ -582,7 +582,7 @@ bindTouchBtn('btn-down',  'ArrowDown',  false);
 let player, platforms, waterZones, clamItems, hawks, eagles, sharks, family, particles, bubbles, clouds;
 let crabs, powerClams, treasureBoxes, heartItems, checkpoint;
 let combo = 0, comboTimer = 0;
-let highScore = parseInt(localStorage.getItem('otterHighScore') || '0');
+let highScore = Math.max(0, parseInt(localStorage.getItem('otterHighScore'), 10) || 0);
 
 // ─── Seeded RNG ───────────────────────────────────────────────────────────────
 function mkRng(seed) {
@@ -2332,7 +2332,10 @@ function openHatShop() {
     const item = document.createElement('div');
     item.className = 'hat-item' + (equipped ? ' equipped' : '') + (hat.boxOnly && !owned ? ' box-locked' : '');
     const label = hat.boxOnly ? `🎁 ${hat.name}` : hat.name;
-    item.innerHTML = `<span class="hat-name">${label}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'hat-name';
+    nameSpan.textContent = label;
+    item.appendChild(nameSpan);
 
     if (hat.boxOnly && !owned) {
       // Box-exclusive — cannot be purchased
