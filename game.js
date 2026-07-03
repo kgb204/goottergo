@@ -584,6 +584,7 @@ let raf, lastTime = 0;
 let msgTimer = 0;
 let shakeTimer = 0;   // frames of camera shake left
 let levelFade  = 0;   // 1 → 0 fade-in at level start
+let fxShakeX = 0, fxShakeY = 0; // this frame's shake offset, read by fx.js
 
 const keys = {};
 let justJumped = false;
@@ -1492,6 +1493,7 @@ function draw(t) {
   ctx.save();
   const shX = shakeTimer > 0 ? (Math.random() - 0.5) * shakeTimer * 0.7 : 0;
   const shY = shakeTimer > 0 ? (Math.random() - 0.5) * shakeTimer * 0.7 : 0;
+  fxShakeX = shX; fxShakeY = shY;
   ctx.translate(-cameraX + shX, shY);
 
   // ── Ground (sand) ──
@@ -2183,7 +2185,9 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking,
   const rUp  = dancing ? Math.max(0, Math.sin(phase + Math.PI))    : 0;
 
   const bx = cx + sway;       // body center x (sways during dance)
-  const fy = footY - bob;     // foot y (bobs up during dance)
+  // Lift so the rounded leg caps and foot ellipses rest ON footY instead of
+  // sinking ~5px below it (they extend past the leg endpoints)
+  const fy = footY - bob - 4 * s;
 
   // Structural y positions (bottom-up)
   const legH = 14 * s, bodyH = 22 * s, headR = 11 * s;
