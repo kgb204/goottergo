@@ -57,14 +57,22 @@ window.gameFX = { active: false, render: null };
 
     // ── Water refraction sprites: one per visible pool, re-sampling the
     //    scene texture through the displacement filter ──
+    // Keep the displacement bleed tight; the mask below clips whatever remains
+    dispFilter.padding = 0;
     const MAX_POOLS = 6;
     const waterSprites = [];
+    const waterMasks = [];
     for (let i = 0; i < MAX_POOLS; i++) {
       const tex = new PIXI.Texture({ source: baseTex.source, frame: new PIXI.Rectangle(0, 0, 2, 2) });
       const sp = new PIXI.Sprite(tex);
       sp.visible = false;
       sp.filters = [dispFilter];
+      // A rectangle mask pinned to the pool clips the rippling output so the
+      // displaced water can never render out over the surrounding sand.
+      const mask = new PIXI.Graphics();
+      sp.mask = mask;
       waterSprites.push(sp);
+      waterMasks.push(mask);
     }
 
     // ── Bloom: brights-only copy of the scene, blurred, added on top.
@@ -86,7 +94,10 @@ window.gameFX = { active: false, render: null };
     bloomSprite.alpha = 0.45;
 
     app.stage.addChild(baseSprite);
-    for (const sp of waterSprites) app.stage.addChild(sp);
+    for (let i = 0; i < waterSprites.length; i++) {
+      app.stage.addChild(waterSprites[i]);
+      app.stage.addChild(waterMasks[i]);
+    }
     app.stage.addChild(bloomSprite);
     app.stage.addChild(dispSprite);
 
@@ -151,7 +162,7 @@ window.gameFX = { active: false, render: null };
           const y0 = wz.y + TOP_INSET + oy;
           const hgt = Math.min(H - y0, wz.h - TOP_INSET);
           if (hgt < 4) continue;
-          const sp = waterSprites[si++];
+          const sp = waterSprites[si];
           const fr = sp.texture.frame;
           fr.x = x0 * k; fr.y = y0 * k;
           fr.width = (x1 - x0) * k; fr.height = hgt * k;
@@ -159,9 +170,18 @@ window.gameFX = { active: false, render: null };
           sp.position.set(x0, y0);
           sp.width = x1 - x0; sp.height = hgt;
           sp.visible = true;
+          // Pin the mask to the pool rect, inset 1px so ripple can't touch the edge
+          const mask = waterMasks[si];
+          mask.clear();
+          mask.rect(x0 + 1, y0, Math.max(1, x1 - x0 - 2), hgt).fill(0xffffff);
+          mask.visible = true;
+          si++;
         }
       }
-      for (; si < waterSprites.length; si++) waterSprites[si].visible = false;
+      for (; si < waterSprites.length; si++) {
+        waterSprites[si].visible = false;
+        waterMasks[si].clear();
+      }
 
       app.renderer.render(app.stage);
     };
