@@ -219,38 +219,113 @@ function sfxCheckpoint() { _playTone(440, 'triangle', 0.12, 0.22); setTimeout(()
 function sfxThud()        { _playTone(90,  'sine',     0.18, 0.45, 35); }
 
 // ─── Background music ─────────────────────────────────────────────────────────
-let _musicTimeout = null;
-// Gentle pentatonic melody in C major: [freq_hz, duration_ms], freq 0 = rest
-const MUSIC_SEQ = [
-  [261.6, 700], [0, 300], [329.6, 500], [392.0, 500],
-  [0, 300],     [440.0, 700], [0, 300], [392.0, 500],
-  [329.6, 500], [0, 300], [261.6, 900], [0, 500],
-  [392.0, 500], [440.0, 700], [0, 300], [329.6, 500],
-  [293.7, 500], [0, 300], [261.6, 900], [0, 900],
+// One gentle procedural track per level theme: a melody voice (with a subtle
+// detuned chorus for warmth) over a bass line. Notes are scheduled ahead on
+// the AudioContext clock for stable timing; melody and bass loop
+// independently. Notes are [midiNote, beats]; 0 = rest.
+const _midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+const MUSIC_TRACKS = [
+  { // Beach — bright C-major pentatonic stroll
+    bpm: 100, wave: 'triangle', bassWave: 'sine', vol: 0.05, bassVol: 0.055,
+    melody: [
+      [64,1],[67,1],[69,1],[67,1],[72,2],[69,1],[67,1],[64,2],[62,1],[64,1],[60,3],[0,1],
+      [67,1],[69,1],[72,1],[69,1],[74,2],[72,1],[69,1],[67,2],[64,1],[62,1],[60,3],[0,1],
+    ],
+    bass: [[36,2],[43,2],[33,2],[43,2]],
+  },
+  { // Sunset — slow warm A-minor sway
+    bpm: 84, wave: 'sine', bassWave: 'triangle', vol: 0.055, bassVol: 0.045,
+    melody: [
+      [57,2],[60,1],[62,1],[64,3],[62,1],[60,2],[62,1],[60,1],[57,3],[0,1],
+      [64,2],[67,1],[69,1],[67,3],[64,1],[62,2],[60,1],[62,1],[57,4],
+    ],
+    bass: [[45,4],[41,4],[43,4],[45,4]],
+  },
+  { // Forest — lively G-major skip
+    bpm: 112, wave: 'triangle', bassWave: 'sine', vol: 0.048, bassVol: 0.05,
+    melody: [
+      [67,0.5],[71,0.5],[74,1],[76,2],[74,1],[71,1],[69,2],
+      [67,0.5],[69,0.5],[71,1],[74,2],[71,1],[69,1],[67,2],
+    ],
+    bass: [[43,2],[38,2],[40,2],[43,2]],
+  },
+  { // Dusk — dreamy E-minor pentatonic drift
+    bpm: 76, wave: 'sine', bassWave: 'sine', vol: 0.055, bassVol: 0.05,
+    melody: [
+      [64,2],[67,2],[71,3],[69,1],[67,2],[64,2],[62,2],[64,3],[0,3],
+      [67,2],[69,2],[74,3],[71,1],[69,2],[67,2],[64,2],[62,3],[0,3],
+    ],
+    bass: [[40,4],[36,4],[38,4],[40,4]],
+  },
+  { // Night — hushed A-minor lullaby
+    bpm: 66, wave: 'sine', bassWave: 'sine', vol: 0.045, bassVol: 0.04,
+    melody: [
+      [57,2],[64,2],[62,2],[60,2],[57,4],[0,2],
+      [60,2],[64,2],[62,2],[59,2],[57,4],[0,2],
+    ],
+    bass: [[33,8],[29,8],[31,8],[33,8]],
+  },
 ];
-function _playMusicNote(freq, dur) {
+
+let _musicTimer = null, _track = null;
+let _mPos = 0, _bPos = 0, _mTime = 0, _bTime = 0;
+
+function _playNote(midi, t, dur, wave, vol, rich) {
+  if (!midi) return;
+  const ac = _getAudio();
+  const gain = ac.createGain();
+  gain.connect(ac.destination);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(vol, t + 0.03);
+  gain.gain.setValueAtTime(vol, t + dur * 0.65);
+  gain.gain.linearRampToValueAtTime(0.0001, t + dur);
+  const detunes = rich ? [0, 5] : [0];
+  for (const cents of detunes) {
+    const o = ac.createOscillator();
+    o.type = wave;
+    o.frequency.setValueAtTime(_midiHz(midi), t);
+    o.detune.setValueAtTime(cents, t);
+    o.connect(gain);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+}
+
+function _scheduleAhead() {
+  if (state !== 'playing' || !_track) return;
+  try {
+    const ac  = _getAudio();
+    const spb = 60 / _track.bpm;
+    const horizon = ac.currentTime + 0.8;
+    while (_mTime < horizon) {
+      const [note, beats] = _track.melody[_mPos];
+      _playNote(note, Math.max(_mTime, ac.currentTime + 0.02), beats * spb, _track.wave, _track.vol, true);
+      _mTime += beats * spb;
+      _mPos = (_mPos + 1) % _track.melody.length;
+    }
+    while (_bTime < horizon) {
+      const [note, beats] = _track.bass[_bPos];
+      _playNote(note, Math.max(_bTime, ac.currentTime + 0.02), beats * spb, _track.bassWave, _track.bassVol);
+      _bTime += beats * spb;
+      _bPos = (_bPos + 1) % _track.bass.length;
+    }
+  } catch (e) {}
+}
+
+function startMusic() {
+  stopMusic();
   try {
     const ac = _getAudio();
-    const osc  = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.connect(gain); gain.connect(ac.destination);
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(freq, ac.currentTime);
-    gain.gain.setValueAtTime(0, ac.currentTime);
-    gain.gain.linearRampToValueAtTime(0.055, ac.currentTime + 0.05);
-    gain.gain.setValueAtTime(0.055, ac.currentTime + dur / 1000 * 0.75);
-    gain.gain.linearRampToValueAtTime(0, ac.currentTime + dur / 1000);
-    osc.start(); osc.stop(ac.currentTime + dur / 1000);
-  } catch(e) {}
+    if (ac.state === 'suspended') ac.resume();
+    _track = MUSIC_TRACKS[(level - 1) % MUSIC_TRACKS.length];
+    _mPos = _bPos = 0;
+    _mTime = _bTime = ac.currentTime + 0.15;
+    _scheduleAhead();
+    _musicTimer = setInterval(_scheduleAhead, 250);
+  } catch (e) {}
 }
-function _musicTick(step) {
-  if (state !== 'playing') return;
-  const [freq, dur] = MUSIC_SEQ[step];
-  if (freq) _playMusicNote(freq, dur);
-  _musicTimeout = setTimeout(() => _musicTick((step + 1) % MUSIC_SEQ.length), dur);
-}
-function startMusic() { stopMusic(); _musicTick(0); }
-function stopMusic()  { clearTimeout(_musicTimeout); _musicTimeout = null; }
+function stopMusic() { clearInterval(_musicTimer); _musicTimer = null; }
 
 // ─── Physics constants ────────────────────────────────────────────────────────
 const GRAVITY_LAND  = 0.6;
