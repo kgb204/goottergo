@@ -2,7 +2,7 @@
 
 // Build marker — check the browser console to confirm you're on the latest
 // deploy and not a cached copy.
-console.log('Go Otter Go — build v11');
+console.log('Go Otter Go — build v12');
 
 // ─── Canvas & context ────────────────────────────────────────────────────────
 const canvas = document.getElementById('gameCanvas');
