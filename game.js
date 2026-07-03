@@ -1471,24 +1471,10 @@ function draw(t) {
   ctx.globalAlpha = 1;
 
   // ── Parallax background hills (screen-space, before camera transform) ──
-  // Far hills (parallax 0.12)
-  ctx.fillStyle = currentTheme.hillFar;
-  ctx.beginPath();
-  for (let xi = 0; xi <= W + 20; xi += 10) {
-    const wx = xi + cameraX * 0.12;
-    const hy2 = GROUND_Y - 55 - Math.sin(wx * 0.0035) * 38 - Math.sin(wx * 0.0079) * 18;
-    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
-  }
-  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
-  // Near hills (parallax 0.28)
-  ctx.fillStyle = currentTheme.hillNear;
-  ctx.beginPath();
-  for (let xi = 0; xi <= W + 20; xi += 10) {
-    const wx = xi + cameraX * 0.28;
-    const hy2 = GROUND_Y - 30 - Math.sin(wx * 0.005 + 1.8) * 24 - Math.sin(wx * 0.011 + 0.5) * 10;
-    xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
-  }
-  ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+  // Far hills (parallax 0.12), near hills (parallax 0.28). Baselines keep the
+  // silhouettes ≥30px above the walkable ground so they read as background.
+  drawHillLayer(currentTheme.hillFar,  cameraX * 0.12, GROUND_Y - 92, 38, 0.0035, 18, 0.0079);
+  drawHillLayer(currentTheme.hillNear, cameraX * 0.28, GROUND_Y - 64, 24, 0.005,  10, 0.011);
 
   ctx.save();
   const shX = shakeTimer > 0 ? (Math.random() - 0.5) * shakeTimer * 0.7 : 0;
@@ -1778,6 +1764,25 @@ function draw(t) {
 }
 
 // ─── Draw helpers ────────────────────────────────────────────────────────────
+
+// Hill silhouette sampled on a WORLD-space grid, then translated to screen.
+// Sampling on a screen grid (the old approach) re-evaluated the curve at
+// fixed screen x each frame, so edges crawled and stretched during scrolling
+// instead of moving rigidly with the parallax offset.
+function drawHillLayer(color, off, baseY, a1, f1, a2, f2) {
+  const step = 10;
+  const start = Math.floor(off / step) * step;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let wx = start; wx <= start + W + step * 2; wx += step) {
+    const hy = baseY - Math.sin(wx * f1) * a1 - Math.sin(wx * f2) * a2;
+    wx === start ? ctx.moveTo(wx - off, hy) : ctx.lineTo(wx - off, hy);
+  }
+  ctx.lineTo(W + step * 2, H);
+  ctx.lineTo(-step * 2, H);
+  ctx.closePath();
+  ctx.fill();
+}
 
 // Erase a soft circle of darkness from the lighting buffer
 function punchLight(x, y, r, strength) {
