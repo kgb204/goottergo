@@ -5,6 +5,28 @@ const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
 const W = 800, H = 480;
 
+// Render at device-pixel resolution so lines stay crisp on retina/mobile
+// screens. All game code keeps drawing in logical 800×480 coordinates —
+// the transform maps them onto the higher-resolution backing buffer.
+function setupCanvasResolution() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width  = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+setupCanvasResolution();
+window.addEventListener('resize', setupCanvasResolution);
+
+// Offscreen buffer for the night lighting pass (darkness with light holes)
+const lightCanvas = document.createElement('canvas');
+lightCanvas.width = W; lightCanvas.height = H;
+const lctx = lightCanvas.getContext('2d');
+
+function hexToRgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 // ─── DOM ─────────────────────────────────────────────────────────────────────
 const overlay        = document.getElementById('overlay');
 const startScreen    = document.getElementById('start-screen');
@@ -560,6 +582,8 @@ let respawnCheckpointActive = false; // carries checkpoint activation across a d
 let cameraX = 0;
 let raf, lastTime = 0;
 let msgTimer = 0;
+let shakeTimer = 0;   // frames of camera shake left
+let levelFade  = 0;   // 1 → 0 fade-in at level start
 
 const keys = {};
 let justJumped = false;
@@ -586,7 +610,7 @@ bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 let player, platforms, waterZones, clamItems, hawks, eagles, sharks, family, particles, bubbles, clouds;
-let crabs, powerClams, treasureBoxes, heartItems, checkpoint, sandDecor;
+let crabs, powerClams, treasureBoxes, heartItems, checkpoint, sandDecor, fireflies;
 let combo = 0, comboTimer = 0;
 let highScore = Math.max(0, parseInt(localStorage.getItem('otterHighScore'), 10) || 0);
 
@@ -745,6 +769,20 @@ function buildLevel() {
   // ── Theme ──
   currentTheme = THEMES[(level - 1) % THEMES.length];
 
+  // ── Fireflies (Dusk/Night levels) — drift lazily near the ground ──
+  fireflies = [];
+  if (currentTheme.stars) {
+    for (let i = 0; i < 26; i++) {
+      fireflies.push({
+        x: rng() * LEVEL_W,
+        y: GROUND_Y - 20 - rng() * 120,
+        rx: 20 + rng() * 40, ry: 10 + rng() * 25,
+        sp: 0.0004 + rng() * 0.0006,
+        ph: rng() * Math.PI * 2,
+      });
+    }
+  }
+
   // ── Moving platforms ──
   const mpCount = 1 + Math.floor(level * 0.6);
   for (let i = 0; i < mpCount; i++) {
@@ -855,6 +893,7 @@ function resetPlayer() {
     jumpsLeft: 2,
     invincible: 0,   // frames
     speedBoost: 0,   // frames
+    squash: 0,       // frames of landing squash left
     frame: 0, frameTimer: 0,
   };
 }
@@ -960,7 +999,11 @@ function update(dt) {
         if (p.moving && !p.bob) player.x += p.vx; // ride horizontal moving platform
       }
     }
-    if (!_wasOnGround && player.onGround && _preLandVy > 2) sfxThud();
+    if (!_wasOnGround && player.onGround && _preLandVy > 2) {
+      sfxThud();
+      player.squash = 10;
+      spawnLandingDust();
+    }
   }
 
   // ── Water surface + bottom clamp ──
@@ -1243,6 +1286,11 @@ function update(dt) {
   // ── Invincibility countdown ──
   if (player.invincible > 0) player.invincible--;
 
+  // ── Effect timers ──
+  if (player.squash > 0) player.squash--;
+  if (shakeTimer > 0) shakeTimer--;
+  if (levelFade > 0) levelFade = Math.max(0, levelFade - 0.03);
+
   // ── Message timer ──
   if (msgTimer > 0) {
     msgTimer--;
@@ -1279,6 +1327,7 @@ function updateKnockedOut(e) {
 function hitByPredator() {
   lives--;
   updateHUD();
+  shakeTimer = 14;
   spawnSparkles(player.x + player.w / 2, player.y + player.h / 2, 14);
   sfxHit();
   combo = 0; comboTimer = 0;
@@ -1334,6 +1383,20 @@ function spawnJumpPuff() {
       life: 1, decay: 0.05,
       r: 4 + Math.random() * 4,
       color: 'rgba(255,255,255,0.7)',
+    });
+  }
+}
+
+function spawnLandingDust() {
+  for (let i = 0; i < 8; i++) {
+    particles.push({
+      x: player.x + player.w / 2 + (Math.random() - 0.5) * 26,
+      y: player.y + player.h,
+      vx: (Math.random() - 0.5) * 3,
+      vy: -0.3 - Math.random() * 0.8,
+      life: 1, decay: 0.06,
+      r: 3 + Math.random() * 4,
+      color: 'rgba(220,200,160,0.8)',
     });
   }
 }
@@ -1427,7 +1490,9 @@ function draw(t) {
   ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
 
   ctx.save();
-  ctx.translate(-cameraX, 0);
+  const shX = shakeTimer > 0 ? (Math.random() - 0.5) * shakeTimer * 0.7 : 0;
+  const shY = shakeTimer > 0 ? (Math.random() - 0.5) * shakeTimer * 0.7 : 0;
+  ctx.translate(-cameraX + shX, shY);
 
   // ── Ground (sand) ──
   const sandGrad = ctx.createLinearGradient(0, GROUND_Y, 0, H);
@@ -1493,6 +1558,28 @@ function draw(t) {
       ctx.lineTo(bx - 4, wz.y + wz.h);
       ctx.closePath();
       ctx.fill();
+    }
+
+    // Sky reflection fading down from the surface
+    const rDepth = Math.min(42, wz.h * 0.45);
+    const rGrad = ctx.createLinearGradient(0, wz.y, 0, wz.y + rDepth);
+    rGrad.addColorStop(0, hexToRgba(currentTheme.skyBot, 0.3));
+    rGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rGrad;
+    ctx.fillRect(wz.x, wz.y, wz.w, rDepth);
+
+    // Sun/moon glint shimmering on the surface below the celestial body
+    const glintX = W * 0.82 + cameraX * 0.95; // world x matching the sun's screen position
+    if (glintX > wz.x - 30 && glintX < wz.x + wz.w + 30) {
+      ctx.fillStyle = currentTheme.sun || PAL.sunColor;
+      for (let gi = 0; gi < 4; gi++) {
+        const gw = (26 - gi * 5) * (0.7 + 0.3 * Math.sin(t * 0.004 + gi * 1.7));
+        ctx.globalAlpha = 0.2 - gi * 0.035;
+        ctx.beginPath();
+        ctx.ellipse(glintX + Math.sin(t * 0.003 + gi) * 5, wz.y + 7 + gi * 7, gw, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
 
     // Animated wave lines
@@ -1628,7 +1715,38 @@ function draw(t) {
   }
   ctx.globalAlpha = 1;
 
+  // ── Fireflies (Dusk/Night) ──
+  if (fireflies.length) {
+    ctx.shadowColor = '#d8ff70';
+    ctx.fillStyle = '#e8ffa0';
+    for (const ff of fireflies) {
+      const fx = ff.x + Math.sin(t * ff.sp + ff.ph) * ff.rx;
+      if (fx < cameraX - 20 || fx > cameraX + W + 20) continue;
+      const fy = ff.y + Math.sin(t * ff.sp * 1.7 + ff.ph * 2) * ff.ry;
+      const blink = 0.35 + 0.65 * Math.abs(Math.sin(t * 0.0025 + ff.ph * 3));
+      ctx.globalAlpha = blink * (currentTheme.night ? 0.9 : 0.6);
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
   ctx.restore();
+
+  // ── Night lighting: darkness overlay with warm holes around light sources ──
+  drawNightLighting();
+
+  // ── Vignette ──
+  drawVignette();
+
+  // ── Level fade-in ──
+  if (levelFade > 0) {
+    ctx.fillStyle = `rgba(10,8,4,${levelFade})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // ── Combo display (screen-space, outside camera transform) ──
   if (comboTimer > 0 && combo >= 3) {
@@ -1658,6 +1776,52 @@ function draw(t) {
 }
 
 // ─── Draw helpers ────────────────────────────────────────────────────────────
+
+// Erase a soft circle of darkness from the lighting buffer
+function punchLight(x, y, r, strength) {
+  if (x < -r || x > W + r) return;
+  const g = lctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(0,0,0,${strength})`);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  lctx.fillStyle = g;
+  lctx.beginPath();
+  lctx.arc(x, y, r, 0, Math.PI * 2);
+  lctx.fill();
+}
+
+function drawNightLighting() {
+  if (!currentTheme.night || !player) return;
+  lctx.globalCompositeOperation = 'source-over';
+  lctx.clearRect(0, 0, W, H);
+  lctx.fillStyle = 'rgba(8,12,38,0.34)';
+  lctx.fillRect(0, 0, W, H);
+
+  // Cut light out of the darkness around each source (screen-space coords)
+  lctx.globalCompositeOperation = 'destination-out';
+  punchLight(W * 0.82 - cameraX * 0.05, 60, 140, 0.9);                                  // moon
+  punchLight(player.x + player.w / 2 - cameraX, player.y + player.h / 2, 115, 0.85);    // otter
+  for (const tb of treasureBoxes) {
+    if (!tb.collected) punchLight(tb.x + tb.w / 2 - cameraX, tb.y + tb.h / 2, 70, 0.8);
+  }
+  for (const pc of powerClams) {
+    if (!pc.collected) punchLight(pc.x - cameraX, pc.y, 60, 0.7);
+  }
+  if (checkpoint && checkpoint.activated) punchLight(checkpoint.x - cameraX, checkpoint.y + 25, 65, 0.6);
+  lctx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(lightCanvas, 0, 0);
+}
+
+let vignetteGrad = null;
+function drawVignette() {
+  if (!vignetteGrad) {
+    vignetteGrad = ctx.createRadialGradient(W / 2, H / 2, H * 0.55, W / 2, H / 2, H * 0.95);
+    vignetteGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vignetteGrad.addColorStop(1, 'rgba(20,10,0,0.22)');
+  }
+  ctx.fillStyle = vignetteGrad;
+  ctx.fillRect(0, 0, W, H);
+}
 
 function drawCloud(x, y, w) {
   const h = w * 0.38;
@@ -2080,6 +2244,10 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking,
   ctx.fillStyle = PAL.otterBrown;
   ctx.beginPath(); ctx.ellipse(bx, midY, 13 * s, bodyH * 0.52, 0, 0, Math.PI * 2); ctx.fill();
 
+  // Top-light sheen on the fur
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.beginPath(); ctx.ellipse(bx - 3 * s, midY - bodyH * 0.18, 9 * s, bodyH * 0.26, -0.3, 0, Math.PI * 2); ctx.fill();
+
   // ── Belly patch ──
   ctx.fillStyle = PAL.otterBelly;
   ctx.beginPath(); ctx.ellipse(bx + 3 * s, midY + 2 * s, 8 * s, bodyH * 0.38, 0.1, 0, Math.PI * 2); ctx.fill();
@@ -2099,6 +2267,8 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking,
   // ── Head ──
   ctx.fillStyle = PAL.otterBrown;
   ctx.beginPath(); ctx.arc(bx, hdY, headR, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.09)';
+  ctx.beginPath(); ctx.arc(bx - headR * 0.28, hdY - headR * 0.3, headR * 0.6, 0, Math.PI * 2); ctx.fill();
 
   // ── Muzzle ──
   ctx.fillStyle = PAL.otterBelly;
@@ -2155,10 +2325,24 @@ function drawPlayer(t) {
     ctx.globalAlpha = 0.35;
   }
 
-  // On land: draw upright standing otter
+  // On land: draw upright standing otter with squash & stretch
   if (!player.inWater) {
     const walking = Math.abs(player.vx) > 0.3;
-    drawStandingOtter(px + pw / 2, py + ph, 1.2, !player.facingRight, t, state === 'win', 0, walking);
+    const footX = px + pw / 2, footY = py + ph;
+    let sx = 1, sy = 1;
+    if (player.squash > 0) {
+      const q = player.squash / 10;          // landing: wide + flat, easing out
+      sx = 1 + 0.14 * q;
+      sy = 1 - 0.18 * q;
+    } else if (!player.onGround && player.vy < -4) {
+      sx = 0.94; sy = 1.07;                  // rising fast: narrow + tall
+    }
+    ctx.save();
+    ctx.translate(footX, footY);
+    ctx.scale(sx, sy);
+    ctx.translate(-footX, -footY);
+    drawStandingOtter(footX, footY, 1.2, !player.facingRight, t, state === 'win', 0, walking);
+    ctx.restore();
     ctx.globalAlpha = 1;
     return;
   }
@@ -2196,6 +2380,12 @@ function drawPlayer(t) {
   ctx.fillStyle = PAL.otterBrown;
   ctx.beginPath();
   ctx.ellipse(px + pw * 0.44, py + ph * 0.54, pw * 0.44, ph * 0.41, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wet-fur sheen along the back
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(px + pw * 0.4, py + ph * 0.36, pw * 0.32, ph * 0.14, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // Belly patch (cream colored, elongated)
@@ -2585,6 +2775,7 @@ function startLevel() {
   state     = 'playing';
   particles = [];
   bubbles   = [];
+  levelFade = 1;
   buildLevel();
   updateHUD();
   hideOverlay();
