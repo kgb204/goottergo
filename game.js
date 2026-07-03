@@ -1,5 +1,9 @@
 'use strict';
 
+// Build marker — check the browser console to confirm you're on the latest
+// deploy and not a cached copy.
+console.log('Go Otter Go — build v11');
+
 // ─── Canvas & context ────────────────────────────────────────────────────────
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
