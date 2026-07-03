@@ -53,7 +53,7 @@ window.gameFX = { active: false, render: null };
     const dispSprite = new PIXI.Sprite(makeNoiseTexture());
     dispSprite.renderable = false;
     dispSprite.scale.set(6); // 256 × 6 = 1536px coverage; drift stays within it
-    const dispFilter = new PIXI.DisplacementFilter({ sprite: dispSprite, scale: 7 });
+    const dispFilter = new PIXI.DisplacementFilter({ sprite: dispSprite, scale: 5 });
 
     // ── Water refraction sprites: one per visible pool, re-sampling the
     //    scene texture through the displacement filter ──
@@ -133,22 +133,30 @@ window.gameFX = { active: false, render: null };
         -180 + Math.cos(t * 0.00042) * 60 + Math.sin(t * 0.0011) * 8
       );
 
-      // Point one refraction sprite at each visible pool
+      // Point one refraction sprite at each visible pool. The band starts
+      // below the waterline (TOP_INSET) so the foam line, the ground edge,
+      // and the otter's feet at ground level stay crisp — only the
+      // underwater interior refracts.
+      const TOP_INSET = 12;
       const k = canvas.width / W;       // logical px → source-buffer px
+      const ox = typeof fxShakeX !== 'undefined' ? fxShakeX : 0;
+      const oy = typeof fxShakeY !== 'undefined' ? fxShakeY : 0;
       let si = 0;
       if (typeof waterZones !== 'undefined' && waterZones) {
         for (const wz of waterZones) {
           if (si >= waterSprites.length) break;
-          const sx = wz.x - cameraX;
+          const sx = wz.x - cameraX + ox;
           const x0 = Math.max(0, sx), x1 = Math.min(W, sx + wz.w);
           if (x1 - x0 < 4) continue;
-          const hgt = Math.min(H - wz.y, wz.h);
+          const y0 = wz.y + TOP_INSET + oy;
+          const hgt = Math.min(H - y0, wz.h - TOP_INSET);
+          if (hgt < 4) continue;
           const sp = waterSprites[si++];
           const fr = sp.texture.frame;
-          fr.x = x0 * k; fr.y = wz.y * k;
+          fr.x = x0 * k; fr.y = y0 * k;
           fr.width = (x1 - x0) * k; fr.height = hgt * k;
           sp.texture.updateUvs();
-          sp.position.set(x0, wz.y);
+          sp.position.set(x0, y0);
           sp.width = x1 - x0; sp.height = hgt;
           sp.visible = true;
         }
