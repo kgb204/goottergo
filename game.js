@@ -2791,6 +2791,7 @@ function loop(t) {
   lastTime = t;
   update(dt);
   draw(t);
+  if (window.gameFX && gameFX.active) gameFX.render(t); // WebGL post-processing (fx.js)
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
