@@ -160,11 +160,11 @@ const PAL = {
 
 // ─── Level themes ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { skyTop:'#7ec8e3', skyBot:'#c8e8f0', groundTop:'#e8c87a', groundBody:'#c8a050', name:'Beach'  },
-  { skyTop:'#ff9040', skyBot:'#ffd080', groundTop:'#e89060', groundBody:'#c87040', name:'Sunset' },
-  { skyTop:'#507090', skyBot:'#90b8d8', groundTop:'#c8d8a0', groundBody:'#a0b878', name:'Forest' },
-  { skyTop:'#c070e0', skyBot:'#f0c0f8', groundTop:'#f0d888', groundBody:'#d0b060', name:'Dusk'   },
-  { skyTop:'#203060', skyBot:'#405090', groundTop:'#d0d8e8', groundBody:'#a0a8c0', name:'Night'  },
+  { skyTop:'#7ec8e3', skyBot:'#c8e8f0', groundTop:'#e8c87a', groundBody:'#c8a050', hillFar:'#7aaeaa', hillNear:'#5a9e70', sun:'#ffe08a', name:'Beach'  },
+  { skyTop:'#ff9040', skyBot:'#ffd080', groundTop:'#e89060', groundBody:'#c87040', hillFar:'#c88060', hillNear:'#9a5a40', sun:'#ffc850', name:'Sunset' },
+  { skyTop:'#507090', skyBot:'#90b8d8', groundTop:'#c8d8a0', groundBody:'#a0b878', hillFar:'#4a7868', hillNear:'#3a6a4a', sun:'#f0e8c0', name:'Forest' },
+  { skyTop:'#c070e0', skyBot:'#f0c0f8', groundTop:'#f0d888', groundBody:'#d0b060', hillFar:'#9a6aa8', hillNear:'#7a4a90', sun:'#ffd8a0', stars:true, name:'Dusk' },
+  { skyTop:'#203060', skyBot:'#405090', groundTop:'#d0d8e8', groundBody:'#a0a8c0', hillFar:'#2a3a5e', hillNear:'#1e2c48', sun:'#f0f0e0', stars:true, night:true, name:'Night' },
 ];
 let currentTheme = THEMES[0];
 
@@ -556,6 +556,7 @@ let level      = 1;
 let lives      = 3;
 let clams      = 0;
 let deathCount = 0;   // increments each death; mixed into treasure-box seed
+let respawnCheckpointActive = false; // carries checkpoint activation across a death rebuild
 let cameraX = 0;
 let raf, lastTime = 0;
 let msgTimer = 0;
@@ -563,14 +564,19 @@ let msgTimer = 0;
 const keys = {};
 let justJumped = false;
 
+// Normalise letter keys to lowercase so WASD works with Shift/CapsLock held
+function normKey(e) { return e.key.length === 1 ? e.key.toLowerCase() : e.key; }
+
 window.addEventListener('keydown', e => {
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if (!keys[e.key]) {
-    keys[e.key] = true;
-    if ((e.key === 'ArrowUp' || e.key === ' ') && state === 'playing') handleJump();
+  if (e.target === otterNameInput) return; // don't move the otter while typing a name
+  const k = normKey(e);
+  if (!keys[k]) {
+    keys[k] = true;
+    if ((k === 'ArrowUp' || k === ' ' || k === 'w') && state === 'playing') handleJump();
   }
 });
-window.addEventListener('keyup', e => { keys[e.key] = false; });
+window.addEventListener('keyup', e => { keys[normKey(e)] = false; });
 
 // Wire up the on-screen touch buttons (handleJump is hoisted as a function declaration)
 bindTouchBtn('btn-left',  'ArrowLeft',  false);
@@ -580,7 +586,7 @@ bindTouchBtn('btn-down',  'ArrowDown',  false);
 
 // ─── Entities ─────────────────────────────────────────────────────────────────
 let player, platforms, waterZones, clamItems, hawks, eagles, sharks, family, particles, bubbles, clouds;
-let crabs, powerClams, treasureBoxes, heartItems, checkpoint;
+let crabs, powerClams, treasureBoxes, heartItems, checkpoint, sandDecor;
 let combo = 0, comboTimer = 0;
 let highScore = Math.max(0, parseInt(localStorage.getItem('otterHighScore'), 10) || 0);
 
@@ -589,6 +595,15 @@ function mkRng(seed) {
   let s = seed >>> 0;
   return () => { s = Math.imul(s ^ (s >>> 17), 0x45d9f3b) >>> 0; s ^= s >>> 11; s = Math.imul(s ^ (s << 4), 0x27d4eb2d) >>> 0; return (s >>> 0) / 0xffffffff; };
 }
+
+// Fixed starfield for the Dusk/Night themes (screen-space, upper half of the sky)
+const STARS = (() => {
+  const r = mkRng(424242), arr = [];
+  for (let i = 0; i < 60; i++) {
+    arr.push({ x: r() * W, y: r() * H * 0.45, r: 0.5 + r() * 1.3, tw: r() * Math.PI * 2 });
+  }
+  return arr;
+})();
 
 // ─── Build level ──────────────────────────────────────────────────────────────
 function buildLevel() {
@@ -629,6 +644,33 @@ function buildLevel() {
     waterZones.push({ x: wcur, y: wy, w: ww, h: wd, surfaceY: wy });
     // smaller gap between zones so water dominates
     wcur += ww + 60 + rng() * 110;
+  }
+
+  // Ambient fish — decorative, patrol their pool on a sine path
+  const FISH_COLS = ['#f0a860', '#80c8e8', '#e8d070', '#d890c0'];
+  for (const wz of waterZones) {
+    wz.fish = [];
+    const fishCount = 1 + Math.floor(rng() * 3);
+    for (let fi = 0; fi < fishCount; fi++) {
+      wz.fish.push({
+        cx: wz.x + wz.w / 2,
+        range: Math.max(20, wz.w / 2 - 40),
+        y: wz.y + 30 + rng() * Math.max(10, wz.h - 45),
+        speed: 0.00025 + rng() * 0.00035,
+        phase: rng() * Math.PI * 2,
+        size: 6 + rng() * 5,
+        color: FISH_COLS[Math.floor(rng() * FISH_COLS.length)],
+      });
+    }
+  }
+
+  // Sand texture — speckles and pebbles scattered across the ground
+  sandDecor = [];
+  for (let i = 0; i < 140; i++) {
+    sandDecor.push({ x: rng() * LEVEL_W, y: GROUND_Y + 8 + rng() * (H - GROUND_Y - 14), r: 0.8 + rng() * 1.6, dark: rng() > 0.5 });
+  }
+  for (let i = 0; i < 20; i++) {
+    sandDecor.push({ x: rng() * LEVEL_W, y: GROUND_Y + 14 + rng() * (H - GROUND_Y - 26), r: 2.5 + rng() * 3, pebble: true });
   }
 
   // Clams — on platforms and in water
@@ -791,7 +833,8 @@ function buildLevel() {
   }
 
   // ── Checkpoint (midpoint flag) ──
-  checkpoint = { x: LEVEL_W / 2, y: GROUND_Y - 50, activated: false };
+  checkpoint = { x: LEVEL_W / 2, y: GROUND_Y - 50, activated: respawnCheckpointActive };
+  respawnCheckpointActive = false;
 
   // Reset combo
   combo = 0; comboTimer = 0;
@@ -835,7 +878,7 @@ function update(dt) {
 
   // ── Determine water state ──
   // Use center-x so half-in/half-out doesn't flicker; enter when feet reach ground level.
-  // Hysteresis: once in water, only exit when feet are 6px above the surface to prevent
+  // Hysteresis: once in water, only exit when feet are 16px above the surface to prevent
   // flickering when the otter bobs at the waterline.
   let inWaterZone = null;
   const pcx = player.x + player.w / 2;
@@ -900,10 +943,11 @@ function update(dt) {
   const _preLandVy   = player.vy;
   player.onGround = false;
   if (!player.inWater) {
+    const footCx = player.x + player.w / 2; // recompute — player has moved since pcx was taken
     for (const p of platforms) {
       // Skip the main ground slab directly over water zones so the otter can enter pools
       if (p.type === 'sand' && p.x === 0) {
-        if (waterZones.some(wz => pcx > wz.x && pcx < wz.x + wz.w)) continue;
+        if (waterZones.some(wz => footCx > wz.x && footCx < wz.x + wz.w)) continue;
       }
       // Top collision (landing)
       if (player.x + player.w > p.x && player.x < p.x + p.w &&
@@ -942,8 +986,7 @@ function update(dt) {
     if (c.collected) continue;
     if (rectsOverlap(pr, { x: c.x - 10, y: c.y - 8, w: 20, h: 18 })) {
       c.collected = true;
-      if (comboTimer > 0) combo++; else combo = 1;
-      comboTimer = 130;
+      bumpCombo();
       const earned = combo >= 5 ? 3 : combo >= 3 ? 2 : 1;
       clams += earned;
       updateHUD();
@@ -965,12 +1008,7 @@ function update(dt) {
     const h = hawks[hi];
 
     if (h.knockedOut) {
-      h.vy += GRAVITY_LAND;
-      h.y  += h.vy;
-      h.x  += h.vx * 0.25;
-      h.rot += 0.14;
-      h.knockTimer--;
-      if (h.y > GROUND_Y + 80 || h.knockTimer <= 0) hawks.splice(hi, 1);
+      if (updateKnockedOut(h)) hawks.splice(hi, 1);
       continue;
     }
 
@@ -1020,7 +1058,7 @@ function update(dt) {
       updateHUD();
       spawnSparkles(h.x + h.w / 2, h.y, 10);
       sfxJump();
-      combo++;
+      bumpCombo();
       continue;
     }
 
@@ -1037,12 +1075,7 @@ function update(dt) {
   for (let ei = eagles.length - 1; ei >= 0; ei--) {
     const e = eagles[ei];
     if (e.knockedOut) {
-      e.vy += GRAVITY_LAND;
-      e.y  += e.vy;
-      e.x  += e.vx * 0.25;
-      e.rot += 0.14;
-      e.knockTimer--;
-      if (e.y > GROUND_Y + 80 || e.knockTimer <= 0) eagles.splice(ei, 1);
+      if (updateKnockedOut(e)) eagles.splice(ei, 1);
       continue;
     }
 
@@ -1068,7 +1101,7 @@ function update(dt) {
       updateHUD();
       spawnSparkles(e.x + e.w / 2, e.y, 10);
       sfxJump();
-      combo++;
+      bumpCombo();
       continue;
     }
 
@@ -1094,12 +1127,7 @@ function update(dt) {
   for (let ci = crabs.length - 1; ci >= 0; ci--) {
     const c = crabs[ci];
     if (c.knockedOut) {
-      c.vy += GRAVITY_LAND;
-      c.y  += c.vy;
-      c.x  += c.vx * 0.2;
-      c.rot += 0.13;
-      c.knockTimer--;
-      if (c.y > GROUND_Y + 60 || c.knockTimer <= 0) crabs.splice(ci, 1);
+      if (updateKnockedOut(c)) crabs.splice(ci, 1);
       continue;
     }
 
@@ -1130,7 +1158,7 @@ function update(dt) {
       updateHUD();
       spawnSparkles(c.x + c.w / 2, c.y, 8);
       sfxJump();
-      combo++;
+      bumpCombo();
       continue;
     }
 
@@ -1232,6 +1260,22 @@ function update(dt) {
   }
 }
 
+// Extend the combo chain (clam pickups and enemy stomps both count)
+function bumpCombo() {
+  combo = comboTimer > 0 ? combo + 1 : 1;
+  comboTimer = 130;
+}
+
+// Shared ragdoll physics for knocked-out enemies; returns true when it should be removed
+function updateKnockedOut(e) {
+  e.vy += GRAVITY_LAND;
+  e.y  += e.vy;
+  e.x  += e.vx * 0.25;
+  e.rot += 0.14;
+  e.knockTimer--;
+  return e.y > GROUND_Y + 80 || e.knockTimer <= 0;
+}
+
 function hitByPredator() {
   lives--;
   updateHUD();
@@ -1248,6 +1292,7 @@ function hitByPredator() {
     showScreen(gameoverScreen);
   } else {
     deathCount++;
+    respawnCheckpointActive = checkpoint.activated; // keep the flag lit across the rebuild
     startLevel();
     player.invincible = 100;
   }
@@ -1320,19 +1365,41 @@ function draw(t) {
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Sun
+  // Stars (Dusk fades them in faintly, Night shows them fully)
+  if (currentTheme.stars) {
+    ctx.fillStyle = '#fff8e0';
+    for (const st of STARS) {
+      const twinkle = 0.5 + 0.5 * Math.sin(t * 0.002 + st.tw);
+      ctx.globalAlpha = (currentTheme.night ? 0.9 : 0.45) * twinkle;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Sun (crescent moon at night)
   const sunX = W * 0.82 - cameraX * 0.05;
-  ctx.shadowColor = PAL.sunColor;
+  const sunColor = currentTheme.sun || PAL.sunColor;
+  ctx.shadowColor = sunColor;
   ctx.shadowBlur  = 32;
-  ctx.fillStyle   = PAL.sunColor;
+  ctx.fillStyle   = sunColor;
   ctx.beginPath();
   ctx.arc(sunX, 60, 36, 0, Math.PI * 2);
   ctx.fill();
+  if (currentTheme.night) {
+    // Carve a crescent by overlaying a sky-colored disc
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = currentTheme.skyTop;
+    ctx.beginPath();
+    ctx.arc(sunX - 15, 52, 31, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.shadowBlur = 0;
 
-  // Clouds (parallax 0.2)
+  // Clouds (parallax 0.2) — dimmed to moonlit wisps at night
   ctx.fillStyle = PAL.cloudColor;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = currentTheme.night ? 0.22 : 0.85;
   for (const cl of clouds) {
     const cx = ((cl.x - cameraX * 0.2) % (LEVEL_W + 200) + LEVEL_W + 200) % (LEVEL_W + 200) - 100;
     drawCloud(cx, cl.y, cl.w);
@@ -1340,8 +1407,8 @@ function draw(t) {
   ctx.globalAlpha = 1;
 
   // ── Parallax background hills (screen-space, before camera transform) ──
-  // Far hills (cool blue-green, parallax 0.12)
-  ctx.fillStyle = '#7aaeaa';
+  // Far hills (parallax 0.12)
+  ctx.fillStyle = currentTheme.hillFar;
   ctx.beginPath();
   for (let xi = 0; xi <= W + 20; xi += 10) {
     const wx = xi + cameraX * 0.12;
@@ -1349,8 +1416,8 @@ function draw(t) {
     xi === 0 ? ctx.moveTo(xi, hy2) : ctx.lineTo(xi, hy2);
   }
   ctx.lineTo(W + 20, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
-  // Near hills (richer green, parallax 0.28)
-  ctx.fillStyle = '#5a9e70';
+  // Near hills (parallax 0.28)
+  ctx.fillStyle = currentTheme.hillNear;
   ctx.beginPath();
   for (let xi = 0; xi <= W + 20; xi += 10) {
     const wx = xi + cameraX * 0.28;
@@ -1370,6 +1437,20 @@ function draw(t) {
   ctx.fillStyle = sandGrad;
   ctx.fillRect(0, GROUND_Y, LEVEL_W, H - GROUND_Y);
 
+  // ── Sand speckles & pebbles ──
+  for (const d of sandDecor) {
+    if (d.x < cameraX - 10 || d.x > cameraX + W + 10) continue;
+    if (d.pebble) {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.beginPath(); ctx.ellipse(d.x + 1, d.y + 1, d.r, d.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(120,90,50,0.4)';
+      ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = d.dark ? 'rgba(90,60,20,0.22)' : 'rgba(255,255,255,0.28)';
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   // ── Water zones (drawn over sand so they're visible as blue pools) ──
   for (const wz of waterZones) {
     if (wz.x + wz.w < cameraX || wz.x > cameraX + W) continue;
@@ -1377,12 +1458,44 @@ function draw(t) {
     wGrad.addColorStop(0, PAL.waterSurface);
     wGrad.addColorStop(0.4, PAL.waterShallow);
     wGrad.addColorStop(1, PAL.waterDeep);
+
+    // Body with a gently rolling surface edge
+    const surfY = xi => wz.y + 3 + Math.sin(xi * 0.045 + t * 0.0035) * 2.2;
     ctx.fillStyle = wGrad;
-    ctx.fillRect(wz.x, wz.y, wz.w, wz.h);
+    ctx.beginPath();
+    ctx.moveTo(wz.x, surfY(0));
+    for (let xi = 8; xi <= wz.w; xi += 8) ctx.lineTo(wz.x + xi, surfY(xi));
+    ctx.lineTo(wz.x + wz.w, wz.y + wz.h);
+    ctx.lineTo(wz.x, wz.y + wz.h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Foam line riding the surface
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let xi = 0; xi <= wz.w; xi += 8) {
+      xi === 0 ? ctx.moveTo(wz.x, surfY(0)) : ctx.lineTo(wz.x + xi, surfY(xi));
+    }
+    ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(wz.x, wz.y + 2, wz.w, wz.h - 2); ctx.clip();
+
+    // Sunbeams slanting down through the water
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    for (let bi = 0; bi < 3; bi++) {
+      const bx = wz.x + ((bi + 1) * wz.w) / 4 + Math.sin(t * 0.0006 + bi * 2.1) * 12;
+      ctx.beginPath();
+      ctx.moveTo(bx - 7, wz.y);
+      ctx.lineTo(bx + 7, wz.y);
+      ctx.lineTo(bx + 30, wz.y + wz.h);
+      ctx.lineTo(bx - 4, wz.y + wz.h);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // Animated wave lines
-    ctx.save();
-    ctx.beginPath(); ctx.rect(wz.x, wz.y, wz.w, wz.h); ctx.clip();
     for (let wi = 0; wi < 4; wi++) {
       const waveY = wz.y + 5 + wi * 9;
       const speed = (wi % 2 === 0 ? 1 : -1) * t * 0.03;
@@ -1395,6 +1508,10 @@ function draw(t) {
       }
       ctx.stroke();
     }
+
+    // Ambient fish
+    for (const f of wz.fish) drawAmbientFish(f, t);
+
     ctx.restore();
   }
 
@@ -1596,6 +1713,42 @@ function drawReeds(t) {
   }
 }
 
+function drawAmbientFish(f, t) {
+  const a = t * f.speed + f.phase;
+  const x = f.cx + Math.sin(a) * f.range;
+  const y = f.y + Math.sin(t * 0.002 + f.phase * 3) * 3;
+  const dir = Math.cos(a) >= 0 ? 1 : -1;
+
+  ctx.save();
+  ctx.translate(x, y);
+  if (dir < 0) ctx.scale(-1, 1);
+  ctx.globalAlpha = 0.8;
+
+  // Body
+  ctx.fillStyle = f.color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, f.size, f.size * 0.45, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tail (flaps as it swims)
+  const flap = Math.sin(t * 0.02 + f.phase) * f.size * 0.25;
+  ctx.beginPath();
+  ctx.moveTo(-f.size * 0.75, 0);
+  ctx.lineTo(-f.size * 1.45, -f.size * 0.45 + flap);
+  ctx.lineTo(-f.size * 1.45, f.size * 0.45 + flap);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eye
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.arc(f.size * 0.5, -f.size * 0.1, f.size * 0.12 + 0.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function drawClam(x, y) {
   // Shell halves
   ctx.fillStyle = PAL.clam;
@@ -1718,6 +1871,14 @@ function drawHeartItem(x, y, t) {
 function drawCrab(c, t) {
   const x = c.x, y = c.y;
   const legPhase = t * 0.015 + c.legPhase;
+
+  if (!c.knockedOut) {
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(x + c.w / 2, y + c.h + 3, 15, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.save();
 
   if (c.knockedOut) {
@@ -1797,6 +1958,12 @@ function drawCheckpointFlag(cp, t) {
 
 function drawFamilyOtters(t) {
   const footY = family.y + family.h; // ground level
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  for (const off of [14, 54, 94]) {
+    ctx.beginPath();
+    ctx.ellipse(family.x + off, footY + 3, 17, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.shadowColor = PAL.familyGlow;
   ctx.shadowBlur  = 24;
   const offsets = [14, 54, 94]; // center-x of each of the three family members
@@ -1974,6 +2141,14 @@ function drawStandingOtter(cx, footY, size, flip, t, dancing, phaseOff, walking,
 
 function drawPlayer(t) {
   const px = player.x, py = player.y, pw = player.w, ph = player.h;
+
+  // Soft ground shadow (doesn't blink with invincibility)
+  if (!player.inWater && player.onGround) {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(px + pw / 2, py + ph + 3, pw * 0.42, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // Blink when invincible
   if (player.invincible > 0 && Math.floor(player.invincible / 5) % 2 === 0) {
